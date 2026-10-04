@@ -56,8 +56,14 @@ async function sha(s){return [...new Uint8Array(await crypto.subtle.digest('SHA-
 async function unlock(){const h=localStorage.pw;if(!h){const a=prompt('اعمل كلمة سر للفولدر الخاص');if(!a)return false;localStorage.pw=await sha(a);return true}const a=prompt('كلمة السر');return !!a&&await sha(a)==h}
 async function fold(k,t){if(k=='private'&&!await unlock())return;cur=k;cur_t=t;S.clear();sel=false;draw()}
 async function draw(){const A=(await all('p')).filter(p=>p.folder==cur),cats=JSON.parse(localStorage.cats||'[]');H(cur_t+' ('+A.length+')');
-const opts=[['invoice','الفواتير'],['private','خاص'],...cats.map(c=>['prod:'+c,c]),['unsorted','غير مقسمة']].map(o=>`<option value="${o[0]}">${o[1]}</option>`).join('');
-V.innerHTML=`<button class=g onclick="home()">→ رجوع</button><button class=g onclick="sel=!sel;S.clear();draw()">${sel?'إلغاء التحديد':'تحديد'}</button>`+(sel?`<select id=dst>${opts}</select><button onclick="mv()">نقل المحدد</button><button class=g onclick="del()">حذف المحدد</button>`:'')+grid(A,sel)}
+const opts=[['invoice','الفواتير'],['private','خاص'],...cats.map(c=>['prod:'+c,c]),['unsorted','غير مقسمة'],['review','وجوه غير معروفة']].map(o=>`<option value="${o[0]}">${o[1]}</option>`).join('');
+V.innerHTML=`<button class=g onclick="home()">→ رجوع</button><button class=g onclick="sel=!sel;S.clear();draw()">${sel?'إلغاء التحديد':'تحديد'}</button>`+(sel?`<button class=g onclick="selAll()">تحديد الكل</button><button onclick="mkp()">👤 تعريف كشخص</button><select id=dst>${opts}</select><button onclick="mv()">نقل المحدد</button><button class=g onclick="del()">حذف المحدد</button>`:'')+grid(A,sel)}
+async function selAll(){(await all('p')).filter(p=>p.folder==cur).forEach(p=>S.add(p.id));draw()}
+async function mkp(){if(!S.size)return alert('حدد صور الأول');const n=(prompt('اسم الشخص')||'').replace(/["'<>]/g,'').trim();if(!n)return;const priv=confirm('الشخص ده خاص؟ (موافق = خاص ، إلغاء = عادي)');const d=[],ps=[];
+for(const id of S){const p=await get('p',id);if(p.faces.length==1){d.push(p.faces[0]);ps.push(p)}}
+if(!d.length)return alert('مفيش في المحدد صورة فيها وش واحد بس');
+const uid=await put('u',{name:n,desc:d,priv});for(const p of ps){p.folder=priv?'private':'person:'+uid;await put('p',p)}
+S.clear();await classify();alert('تم! اتعرف الشخص من '+ps.length+' صورة');home()}
 async function mv(){const d=$('dst').value;for(const id of S){const p=await get('p',id);p.folder=d;await put('p',p)}S.clear();draw()}
 async function del(){if(!confirm('تحذف الصور المحددة؟'))return;for(const id of S)await tx('p','readwrite',o=>o.delete(id));S.clear();draw()}
 async function ppl(){H('الأشخاص');S.clear();const P=await all('u'),A=(await all('p')).filter(p=>p.faces.length==1&&p.folder=='review');
