@@ -1,26 +1,30 @@
 <!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>صوري</title>
-<meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="صوري"><meta name="theme-color" content="#0b0d12">
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="صوري"><meta name="theme-color" content="#6366f1">
 <style>
-:root{--bg:#0b0d12;--card:#151922;--card2:#1d2230;--ac:#4f8cff;--tx:#eef1f7;--mu:#8b93a7}
+:root{--bg:#f3f5fb;--card:#fff;--card2:#eaeef9;--ac:#4f6bff;--tx:#1b2240;--mu:#7a85a3}
 *{-webkit-tap-highlight-color:transparent}
-body{margin:0;font-family:-apple-system,"SF Arabic",Tahoma,sans-serif;background:var(--bg);color:var(--tx);padding-bottom:calc(84px + env(safe-area-inset-bottom))}
-header{padding:calc(16px + env(safe-area-inset-top)) 18px 16px;font-size:22px;font-weight:800;background:linear-gradient(135deg,#1a2a55,#3b2a6e);position:sticky;top:0;z-index:5;box-shadow:0 4px 18px #0008}
-.c{padding:14px}
-button{background:var(--ac);color:#fff;border:0;border-radius:14px;padding:12px 18px;font-size:16px;font-weight:600;margin:4px;font-family:inherit}
+body{margin:0;font-family:-apple-system,"SF Arabic",Tahoma,sans-serif;background:var(--bg);color:var(--tx);padding-bottom:calc(88px + env(safe-area-inset-bottom))}
+header{padding:calc(18px + env(safe-area-inset-top)) 20px 20px;font-size:23px;font-weight:800;color:#fff;background:linear-gradient(135deg,#4f8cff,#8b5cf6 60%,#ec4899);position:sticky;top:0;z-index:5;border-radius:0 0 26px 26px;box-shadow:0 8px 24px #6366f155}
+.c{padding:16px}
+button{background:linear-gradient(135deg,#4f8cff,#7c5cff);color:#fff;border:0;border-radius:14px;padding:12px 18px;font-size:16px;font-weight:600;margin:4px;font-family:inherit;box-shadow:0 4px 12px #4f6bff33}
 button:active{transform:scale(.97)}
 button:disabled{opacity:.4}
-button.g{background:var(--card2);color:var(--tx)}
-.f{background:var(--card);border-radius:16px;padding:16px;margin:10px 0;display:flex;justify-content:space-between;align-items:center;font-size:17px;box-shadow:0 2px 10px #0005}
-.f b{background:var(--card2);color:var(--ac);border-radius:20px;padding:4px 14px;font-size:15px}
-.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-top:8px}
+button.g{background:#e7ebf6;color:var(--ac);box-shadow:none}
+.bar{display:flex;flex-wrap:wrap;margin-bottom:6px}
+.f{background:var(--card);border-radius:20px;padding:14px;margin:10px 0;display:flex;align-items:center;gap:12px;font-size:17px;box-shadow:0 4px 16px #1b224012}
+.ic{width:46px;height:46px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:23px;flex:none}
+.nm{flex:1;font-weight:600}
+.f b{background:var(--card2);color:var(--tx);border-radius:20px;padding:5px 15px;font-size:15px}
+.f button.dl{background:#fee2e2;box-shadow:none;margin:0;padding:8px 14px}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:10px}
 .grid div{aspect-ratio:1}
-.grid img{width:100%;height:100%;object-fit:cover;border-radius:10px}
-.grid .s{outline:4px solid var(--ac);border-radius:10px}
-nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:#12151dee;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);padding-bottom:env(safe-area-inset-bottom);border-top:1px solid #ffffff12}
-nav button{flex:1;background:none;border-radius:0;margin:0;padding:12px 0;font-size:12px;color:var(--mu);display:flex;flex-direction:column;gap:2px;align-items:center}
+.grid img{width:100%;height:100%;object-fit:cover;border-radius:14px;box-shadow:0 2px 8px #1b224020}
+.grid .s{outline:4px solid var(--ac);border-radius:14px}
+nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:#ffffffee;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);padding-bottom:env(safe-area-inset-bottom);border-top:1px solid #e3e8f4}
+nav button{flex:1;background:none;border-radius:0;margin:0;padding:12px 0;font-size:12px;color:var(--mu);display:flex;flex-direction:column;gap:2px;align-items:center;box-shadow:none}
 nav button span{font-size:22px}
-nav button.on{color:var(--ac)}
-input,select{width:100%;box-sizing:border-box;padding:14px;font-size:16px;border-radius:14px;border:0;margin:5px 0;background:var(--card2);color:var(--tx);font-family:inherit}
+nav button.on{color:var(--ac);font-weight:700}
+input,select{width:100%;box-sizing:border-box;padding:14px;font-size:16px;border-radius:14px;border:1px solid #dde3f1;margin:5px 0;background:#fff;color:var(--tx);font-family:inherit}
 progress{width:100%;height:10px;border-radius:8px}
 h3{color:var(--mu);font-weight:600}
 </style></head><body>
@@ -31,7 +35,7 @@ h3{color:var(--mu);font-weight:600}
 <script>
 (function(){const c=document.createElement('canvas');c.width=c.height=180;const x=c.getContext('2d'),g=x.createLinearGradient(0,0,180,180);g.addColorStop(0,'#3b82f6');g.addColorStop(1,'#7c3aed');x.fillStyle=g;x.fillRect(0,0,180,180);x.font='96px sans-serif';x.textAlign='center';x.textBaseline='middle';x.fillText('📷',90,96);const l=document.createElement('link');l.rel='apple-touch-icon';l.href=c.toDataURL('image/png');document.head.append(l)})();
 const $=id=>document.getElementById(id),V=$('v'),H=t=>$('h').textContent=t;
-let db,cur,sel=false,S=new Set(),busy=false,cur_t='';
+let db,cur,sel=false,S=new Set(),busy=false,cur_t='',ed=false;
 const TH=.45;
 const open_=()=>new Promise(r=>{const q=indexedDB.open('photos1',1);q.onupgradeneeded=()=>{q.result.createObjectStore('p',{keyPath:'id',autoIncrement:true});q.result.createObjectStore('u',{keyPath:'id',autoIncrement:true})};q.onsuccess=()=>{db=q.result;r()}});
 const tx=(s,m,f)=>new Promise((res,rej)=>{const t=db.transaction(s,m),q=f(t.objectStore(s));t.oncomplete=()=>res(q&&q.result);t.onerror=()=>rej(t.error)});
@@ -43,53 +47,12 @@ function models(){if(!ml)ml=Promise.all([faceapi.nets.tinyFaceDetector.loadFromU
 async function faces(blob){const c=await cv(blob,1600);const d=await faceapi.detectAllFaces(c,new faceapi.TinyFaceDetectorOptions({inputSize:704,scoreThreshold:.3})).withFaceLandmarks().withFaceDescriptors();return d.filter(x=>x.detection.box.width>=36).map(x=>Array.from(x.descriptor))}
 const dist=(a,b)=>{let s=0;for(let i=0;i<128;i++){const d=a[i]-b[i];s+=d*d}return Math.sqrt(s)};
 async function classify(){const P=await all('u'),A=await all('p');for(const p of A){if(p.folder!='new'&&p.folder!='review')continue;let f;
-if(p.faces.length){const m=P.filter(u=>p.faces.some(d=>u.desc.some(e=>dist(d,e)<TH)));f=m.length?(m.some(u=>u.priv)?'private':'person:'+m[0].id):'review'}else f='unsorted';
+if(p.faces.length){const sc=u=>Math.min(...p.faces.flatMap(d=>u.desc.map(e=>dist(d,e))));const m=P.map(u=>[u,sc(u)]).filter(x=>x[1]<TH).sort((a,b)=>a[1]-b[1]).map(x=>x[0]);f=m.length?(m.some(u=>u.priv)?'private':'person:'+m[0].id):'review'}else f='unsorted';
 if(f!=p.folder){p.folder=f;await put('p',p)}}}
-async function redo(){if(!confirm('هعيد توزيع صور الأشخاص بحساسية أشد. صور المنتجات والفواتير والخاص مش هتتحرك. تكمل؟'))return;const A=await all('p');let n=0;for(const p of A){if(p.folder.startsWith('person:')){p.folder='new';await put('p',p);n++}}await classify();alert('تم، اتعاد توزيع '+n+' صورة')}
+async function redo(){if(!confirm('هعيد توزيع صور الأشخاص. صور المنتجات والفواتير والخاص مش هتتحرك. تكمل؟'))return;const A=await all('p');let n=0;for(const p of A){if(p.folder.startsWith('person:')){p.folder='new';await put('p',p);n++}}await classify();alert('تم، اتعاد توزيع '+n+' صورة')}
 async function addFiles(fs){pg(0,fs.length,'بحمل برنامج الوجوه...');await models();
 const ex=new Set((await all('p')).map(p=>p.thumb));let ad=0,sk=0;
 for(let i=0;i<fs.length;i++){const f=fs[i];try{const t=(await cv(f,240)).toDataURL('image/jpeg',.7);
 if(ex.has(t)){sk++}else{ex.add(t);const d=await faces(f);
 await put('p',{name:f.name,blob:f,thumb:t,faces:d,folder:'new',text:''});ad++}}catch(e){}
 pg(i+1,fs.length,(i+1)+' / '+fs.length)}
-await classify();pg(fs.length,fs.length,'خلصنا ✅ اتضاف '+ad+' — اتخطى '+sk+' مكرر')}
-function nv(i){[...$('nv').children].forEach((b,j)=>b.classList.toggle('on',i==j))}
-function add(){nv(1);H('إضافة صور');V.innerHTML='<input type=file id=fi multiple accept="image/*"><button id=gb onclick="go()">ابدأ</button><progress id=pr value=0></progress><p id=st></p><p style="color:var(--mu)">اختار ٣٠–٥٠ صورة في المرة، دوس ابدأ <b>مرة واحدة بس</b>، وسيب الشاشة مفتوحة لحد ما تخلص.</p>'}
-async function go(){if(busy)return;const f=[...$('fi').files];if(!f.length)return alert('اختار صور الأول');busy=true;$('gb').disabled=true;$('st').textContent='جاري التحضير...';
-try{await addFiles(f)}catch(e){alert('حصل خطأ: '+e.message)}
-if($('fi'))$('fi').value='';busy=false;if($('gb'))$('gb').disabled=false}
-function grid(l,s){return '<div class=grid>'+l.map(p=>`<div id="t${p.id}" class="${S.has(p.id)?'s':''}" onclick="${s?`tg(${p.id})`:`view(${p.id})`}"><img src="${p.thumb}"></div>`).join('')+'</div>'}
-function tg(id){S.has(id)?S.delete(id):S.add(id);$('t'+id).classList.toggle('s')}
-async function view(id){const p=await get('p',id),u=URL.createObjectURL(p.blob),d=document.createElement('div');d.style='position:fixed;inset:0;background:#000;z-index:9;display:flex;align-items:center;justify-content:center';d.innerHTML=`<img src="${u}" style="max-width:100%;max-height:100%">`;d.onclick=()=>{d.remove();URL.revokeObjectURL(u)};document.body.append(d)}
-async function home(){nv(0);H('الفولدرات');cur=null;const A=await all('p'),P=await all('u'),cats=JSON.parse(localStorage.cats||'[]');const n=k=>A.filter(p=>p.folder==k).length;
-const rows=[['invoice','🧾 الفواتير'],['private','🔒 خاص'],...P.filter(u=>!u.priv).map(u=>['person:'+u.id,'👤 '+u.name]),...cats.map(c=>['prod:'+c,'📦 '+c]),['unsorted','🖼 غير مقسمة'],['review','❓ وجوه غير معروفة']];
-V.innerHTML=rows.map(r=>`<div class=f data-k="${r[0]}" data-t="${r[1]}" onclick="fold(this.dataset.k,this.dataset.t)"><span>${r[1]}</span><b>${n(r[0])}</b></div>`).join('')+'<button class=g onclick="nc()">+ قسم منتجات جديد</button>'}
-function nc(){const n=(prompt('اسم القسم')||'').replace(/["'<>]/g,'').trim();if(!n)return;const c=JSON.parse(localStorage.cats||'[]');c.push(n);localStorage.cats=JSON.stringify(c);home()}
-async function sha(s){return [...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s)))].map(x=>x.toString(16).padStart(2,'0')).join('')}
-async function unlock(){const h=localStorage.pw;if(!h){const a=prompt('اعمل كلمة سر للفولدر الخاص');if(!a)return false;localStorage.pw=await sha(a);return true}const a=prompt('كلمة السر');return !!a&&await sha(a)==h}
-async function fold(k,t){if(k=='private'&&!await unlock())return;cur=k;cur_t=t;S.clear();sel=false;draw()}
-async function draw(){const A=(await all('p')).filter(p=>p.folder==cur),cats=JSON.parse(localStorage.cats||'[]');H(cur_t+' ('+A.length+')');
-const opts=[['invoice','الفواتير'],['private','خاص'],...cats.map(c=>['prod:'+c,c]),['unsorted','غير مقسمة'],['review','وجوه غير معروفة']].map(o=>`<option value="${o[0]}">${o[1]}</option>`).join('');
-V.innerHTML=`<button class=g onclick="home()">→ رجوع</button><button class=g onclick="sel=!sel;S.clear();draw()">${sel?'إلغاء التحديد':'تحديد'}</button>`+(sel?`<button class=g onclick="selAll()">تحديد الكل</button><button onclick="mkp()">👤 تعريف كشخص</button><select id=dst>${opts}</select><button onclick="mv()">نقل المحدد</button><button class=g onclick="del()">حذف المحدد</button>`:'')+grid(A,sel)}
-async function selAll(){(await all('p')).filter(p=>p.folder==cur).forEach(p=>S.add(p.id));draw()}
-async function mkp(){if(!S.size)return alert('حدد صور الأول');const n=(prompt('اسم الشخص')||'').replace(/["'<>]/g,'').trim();if(!n)return;const priv=confirm('الشخص ده خاص؟ (موافق = خاص ، إلغاء = عادي)');const d=[],ps=[];
-for(const id of S){const p=await get('p',id);if(p.faces.length==1){d.push(p.faces[0]);ps.push(p)}}
-if(!d.length)return alert('مفيش في المحدد صورة فيها وش واحد بس');
-const uid=await put('u',{name:n,desc:d,priv});for(const p of ps){p.folder=priv?'private':'person:'+uid;await put('p',p)}
-S.clear();await classify();alert('تم! اتعرف الشخص من '+ps.length+' صورة');home()}
-async function mv(){const d=$('dst').value;for(const id of S){const p=await get('p',id);p.folder=d;await put('p',p)}S.clear();draw()}
-async function del(){if(!confirm('تحذف الصور المحددة؟'))return;for(const id of S)await tx('p','readwrite',o=>o.delete(id));S.clear();draw()}
-async function ppl(){nv(2);H('الأشخاص');S.clear();const P=await all('u'),A=(await all('p')).filter(p=>p.faces.length==1&&p.folder=='review');
-V.innerHTML=P.map(u=>`<div class=f><span>${u.name}${u.priv?' 🔒':''}</span><button class=g onclick="dp(${u.id})">حذف</button></div>`).join('')+'<h3>شخص جديد: اختار صور وشه فيها لوحده</h3>'+grid(A,true)+'<input id=pn placeholder="اسم الشخص"><label><input type=checkbox id=pv style="width:auto"> صوره خاصة (تروح الفولدر المقفول)</label><br><button onclick="sp()">حفظ الشخص</button>'}
-async function sp(){const n=$('pn').value.trim();if(!n||!S.size)return alert('اكتب الاسم واختار صور');const d=[];for(const id of S)d.push((await get('p',id)).faces[0]);await put('u',{name:n,desc:d,priv:$('pv').checked});await classify();S.clear();ppl()}
-async function dp(id){if(!confirm('تحذف الشخص؟'))return;await tx('u','readwrite',o=>o.delete(id));for(const p of await all('p'))if(p.folder=='person:'+id){p.folder='review';await put('p',p)}ppl()}
-function sort(){nv(3);H('تصنيف');V.innerHTML='<button onclick="redo()">🔄 إعادة توزيع صور الأشخاص</button><button onclick="rescan()">🔍 إعادة قراءة الوجوه (أدق)</button><button onclick="classify().then(()=>alert(\'تم\'))">إعادة مطابقة الوجوه</button><button onclick="inv()">🧾 فرز الفواتير (بطيء)</button><button class=g onclick="dd()">حذف الصور المكررة</button><progress id=pr value=0></progress><p id=st></p>'}
-async function rescan(){if(busy)return;busy=true;try{pg(0,1,'بحمل برنامج الوجوه...');await models();const A=(await all('p')).filter(p=>['new','review','unsorted'].includes(p.folder));
-for(let i=0;i<A.length;i++){const p=A[i];try{p.faces=await faces(p.blob);p.folder='new';await put('p',p)}catch(e){}pg(i+1,A.length,(i+1)+' / '+A.length)}
-await classify();pg(A.length,A.length,'خلصنا ✅')}catch(e){alert('حصل خطأ: '+e.message)}busy=false}
-async function dd(){const A=await all('p'),s=new Set();let n=0;for(const p of A){if(s.has(p.thumb)){await tx('p','readwrite',o=>o.delete(p.id));n++}else s.add(p.thumb)}alert('اتحذف '+n+' صورة مكررة')}
-async function inv(){const A=(await all('p')).filter(p=>p.folder=='unsorted');pg(0,A.length,'بحمل قراءة الكتابة...');const w=await Tesseract.createWorker('ara+eng');let k=0;
-for(let i=0;i<A.length;i++){const p=A[i];try{const t=(await w.recognize(await cv(p.blob,1400))).data.text;p.text=t;if((t.match(/فاتور|اجمالي|إجمالي|المجموع|الضريب|invoice|total|receipt/gi)||[]).length>=2){p.folder='invoice';k++}await put('p',p)}catch(e){}
-pg(i+1,A.length,(i+1)+' / '+A.length+' — فواتير: '+k)}await w.terminate()}
-open_().then(()=>{navigator.storage&&navigator.storage.persist&&navigator.storage.persist();home()});
-</script></body></html>
