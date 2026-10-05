@@ -40,7 +40,7 @@ h3{color:var(--mu);font-weight:600}
 <script>
 (function(){const c=document.createElement('canvas');c.width=c.height=180;const x=c.getContext('2d'),g=x.createLinearGradient(0,0,180,180);g.addColorStop(0,'#3b82f6');g.addColorStop(1,'#7c3aed');x.fillStyle=g;x.fillRect(0,0,180,180);x.font='96px sans-serif';x.textAlign='center';x.textBaseline='middle';x.fillText('📷',90,96);const l=document.createElement('link');l.rel='apple-touch-icon';l.href=c.toDataURL('image/png');document.head.append(l)})();
 const $=id=>document.getElementById(id),V=$('v'),H=t=>$('h').textContent=t,EM=e=>e?((e.name?e.name+': ':'')+(e.message||'')||String(e)):'خطأ غير معروف';
-let db,cur,sel=false,S=new Set(),busy=false,cur_t='',ed=false;
+let db,cur,sel=false,S=new Set(),busy=false,cur_t='',ed=false,vlist=[];
 const TH=.45;
 const open_=()=>new Promise((r,j)=>{const q=indexedDB.open('photos1',2);q.onupgradeneeded=()=>{const d=q.result;if(!d.objectStoreNames.contains('p'))d.createObjectStore('p',{keyPath:'id',autoIncrement:true});if(!d.objectStoreNames.contains('u'))d.createObjectStore('u',{keyPath:'id',autoIncrement:true});if(!d.objectStoreNames.contains('b'))d.createObjectStore('b',{keyPath:'id'})};q.onsuccess=()=>{db=q.result;r()};q.onerror=()=>j(q.error||new Error('فشل فتح التخزين'));q.onblocked=()=>j(new Error('التخزين متعلق'));setTimeout(()=>j(new Error('التخزين مردّش بعد ٨ ثواني')),8000)});
 const tx=(s,m,f)=>new Promise((res,rej)=>{try{const t=db.transaction(s,m),q=f(t.objectStore(s));let er=null;q.onerror=()=>{er=q.error};t.oncomplete=()=>res(q&&q.result);t.onerror=t.onabort=()=>rej(er||t.error||new Error('فشل غير معروف في التخزين'))}catch(e){rej(e)}});
@@ -101,10 +101,12 @@ await w.terminate();w=null;
 const cl=Object.keys(mc).map(k=>fname(k)+': '+mc[k]).join(' | ');
 pg(cand.length,cand.length,'خلصنا ✅ فواتير السيستم: '+ms+(cl?' — عملاء ('+cl+')':'')+' — محتاجة مراجعتك: '+rv+' — مش فواتير: '+nonInv+' — أعلى تشابه مع السيستم في الباقي: '+topSim.toFixed(2)+(cs.length?'':' — مفيش فولدرات عملاء جوه الفواتير')+(bad?' — فشل '+bad+': '+EM(fe):''))}catch(e){alert('حصل خطأ: '+EM(e))}
 if(w){try{await w.terminate()}catch(e){}}busy=false}
-async function revInv(){nv(3);H('مراجعة الفواتير');const A=(await all('p')).filter(p=>p.rv&&(p.folder=='unsorted'||p.folder=='invoice'));
+async function revInv(){nv(3);H('مراجعة الفواتير');const A=(await all('p')).filter(p=>p.rv&&(p.folder=='unsorted'||p.folder=='invoice'));vlist=A.map(p=>p.id);
 const o=[['invoice','الفواتير (بدون تصنيف)'],...subOpts('invoice','')].map(x=>`<option value="${x[0]}">${x[1]}</option>`).join('');
-V.innerHTML='<button class=g onclick="sort()">→ رجوع</button>'+(A.length?A.map(p=>`<div class=f style="flex-wrap:wrap"><img src="${p.thumb}" onclick="view(${p.id})" style="width:72px;height:72px;object-fit:cover;border-radius:12px"><span class=nm style="min-width:120px">اتقرا: ${esc(p.rv.txt)}</span><select id="s${p.id}">${o}</select><button onclick="mvOne(${p.id})">نقل</button></div>`).join(''):'<p>مفيش فواتير للمراجعة ✅</p>')}
-async function mvOne(id){const p=await get('p',id),d=$('s'+id).value;p.folder=d;delete p.auto;delete p.rv;await put('p',p);revInv()}
+V.innerHTML='<button class=g onclick="sort()">→ رجوع</button>'+(A.length?'<p style="color:var(--mu)">اكتب اسم العميل في الخانة ودوس نقل (الفولدر بيتعمل لوحده). أو سيب الخانة فاضية واختار فولدر موجود.</p>'+A.map(p=>`<div class=f style="flex-wrap:wrap"><img src="${p.thumb}" onclick="view(${p.id})" style="width:72px;height:72px;object-fit:cover;border-radius:12px"><span class=nm style="min-width:120px">اتقرا: ${esc(p.rv.txt)}</span><input id="n${p.id}" placeholder="اكتب اسم العميل"><select id="s${p.id}">${o}</select><button onclick="mvOne(${p.id})">نقل</button></div>`).join(''):'<p>مفيش فواتير للمراجعة ✅</p>')}
+async function mvOne(id){const p=await get('p',id);let d=$('s'+id).value;const raw=($('n'+id).value||'').replace(/["'<>\/]/g,'').trim();
+if(raw){const sb=getSubs();sb.invoice=sb.invoice||[];const ex=sb.invoice.find(x=>norm(x)==norm(raw));const nm=ex||raw;if(!ex){sb.invoice.push(raw);localStorage.subs=JSON.stringify(sb)}d='invoice/'+nm}
+p.folder=d;delete p.auto;delete p.rv;await put('p',p);revInv()}
 async function auto(){if(busy)return;busy=true;try{const T=.75,MG=.03;pg(0,1,'بحمل برنامج الصور (أول مرة بياخد وقت)...');await mnet();
 const A=await all('p');
 const ex=A.filter(p=>inF(p)&&!p.auto);
@@ -160,9 +162,24 @@ function add(){nv(1);H('إضافة صور');V.innerHTML='<input type=file id=fi 
 async function go(){if(busy)return;const f=[...$('fi').files];if(!f.length)return alert('اختار صور الأول');busy=true;$('gb').disabled=true;$('st').textContent='جاري التحضير...';
 try{await addFiles(f)}catch(e){alert('حصل خطأ: '+EM(e))}
 if($('fi'))$('fi').value='';busy=false;if($('gb'))$('gb').disabled=false}
-function grid(l,s){return '<div class=grid>'+l.map(p=>`<div id="t${p.id}" class="${S.has(p.id)?'s':''}" onclick="${s?`tg(${p.id})`:`view(${p.id})`}"><img src="${p.thumb}"></div>`).join('')+'</div>'}
+function grid(l,s){vlist=l.map(p=>p.id);return '<div class=grid>'+l.map(p=>`<div id="t${p.id}" class="${S.has(p.id)?'s':''}" onclick="${s?`tg(${p.id})`:`view(${p.id})`}"><img src="${p.thumb}"></div>`).join('')+'</div>'}
 function tg(id){S.has(id)?S.delete(id):S.add(id);$('t'+id).classList.toggle('s')}
-async function view(id){const bl=await blobOf(id),u=URL.createObjectURL(bl),d=document.createElement('div');d.style='position:fixed;inset:0;background:#000;z-index:9;display:flex;align-items:center;justify-content:center';d.innerHTML=`<img src="${u}" style="max-width:100%;max-height:100%">`;d.onclick=()=>{d.remove();URL.revokeObjectURL(u)};document.body.append(d)}
+async function view(id){let i=vlist.indexOf(id);if(i<0){vlist=[id];i=0}
+const d=document.createElement('div');d.style='position:fixed;inset:0;background:#000;z-index:9;display:flex;align-items:center;justify-content:center;touch-action:pan-y';
+const img=document.createElement('img');img.style='max-width:100%;max-height:100%';
+const cnt=document.createElement('div');cnt.style='position:absolute;top:calc(14px + env(safe-area-inset-top));left:0;right:0;text-align:center;color:#fff;font-size:15px;pointer-events:none';
+const bs='position:absolute;top:50%;transform:translateY(-50%);background:#0008;color:#fff;border-radius:50%;width:44px;height:44px;padding:0;font-size:28px;margin:0;box-shadow:none;line-height:1';
+const bn=document.createElement('button');bn.textContent='›';bn.style=bs+';right:8px';
+const bp=document.createElement('button');bp.textContent='‹';bp.style=bs+';left:8px';
+let u=null;
+async function show(){const bl=await blobOf(vlist[i]);if(u)URL.revokeObjectURL(u);u=URL.createObjectURL(bl);img.src=u;cnt.textContent=(i+1)+' / '+vlist.length;bp.style.display=i>0?'':'none';bn.style.display=i<vlist.length-1?'':'none'}
+const close=()=>{d.remove();if(u)URL.revokeObjectURL(u)};
+const go2=n=>{const j=i+n;if(j<0||j>=vlist.length)return;i=j;show()};
+bn.onclick=e=>{e.stopPropagation();go2(1)};bp.onclick=e=>{e.stopPropagation();go2(-1)};
+let x0=0;d.ontouchstart=e=>{x0=e.changedTouches[0].clientX};
+d.ontouchend=e=>{const dx=e.changedTouches[0].clientX-x0;if(Math.abs(dx)>50)go2(dx<0?1:-1)};
+d.onclick=e=>{if(e.target===d||e.target===img)close()};
+d.append(img,cnt,bp,bn);document.body.append(d);await show()}
 async function home(){nv(0);H('الفولدرات');cur=null;const A=await all('p'),P=await all('u'),cats=JSON.parse(localStorage.cats||'[]');const n=k=>A.filter(p=>p.folder==k).length;
 const rows=[['invoice','🧾','الفواتير','#f59e0b'],['private','🔒','خاص','#ef4444'],...P.filter(u=>!u.priv).map(u=>['person:'+u.id,'👤',u.name,'#3b82f6',1]),...cats.map(c=>['prod:'+c,'📦',c,'#10b981',1]),['unsorted','🖼','غير مقسمة','#64748b'],['review','❓','وجوه غير معروفة','#8b5cf6']];
 V.innerHTML='<div class=bar><button onclick="nc()">+ قسم منتجات</button><button onclick="ppl()">+ شخص جديد</button><button class=g onclick="ed=!ed;home()">'+(ed?'تم ✔':'✏️ تعديل')+'</button></div>'+rows.map(r=>`<div class=f data-k="${r[0]}" data-t="${r[1]} ${r[2]}" onclick="fold(this.dataset.k,this.dataset.t)"><span class=ic style="background:${r[3]}22">${r[1]}</span><span class=nm>${r[2]}</span>${ed&&r[4]?`<button class=dl onclick="event.stopPropagation();rm(this.parentNode.dataset.k)">🗑</button>`:`<b>${n(r[0])}</b>`}</div>`).join('')}
