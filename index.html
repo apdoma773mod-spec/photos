@@ -60,10 +60,15 @@ let mnp=null;
 function mnet(){if(!mnp)mnp=(async()=>{if(!window.tf)await ls('https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js');if(!window.mobilenet)await ls('https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@2.1.1/dist/mobilenet.min.js');return await mobilenet.load({version:1,alpha:1.0})})().catch(e=>{mnp=null;throw e});return mnp}
 async function emb(blob){const c=await cv(blob,256),m=await mnet(),t=m.infer(c,true),d=await t.data();t.dispose();let n=0;for(const v of d)n+=v*v;n=Math.sqrt(n)||1;return Array.from(d,v=>+(v/n).toFixed(4))}
 const dot=(a,b)=>{let s=0;for(let i=0;i<a.length;i++)s+=a[i]*b[i];return s};
-const fname=k=>k=='invoice'?'الفواتير':k.replace('prod:','');
+const getSubs=()=>{try{return JSON.parse(localStorage.subs||'{}')}catch(e){return{}}};
+const subsOf=k=>getSubs()[k]||[];
+const tt=k=>{if(k.includes('/')){const i=k.lastIndexOf('/');return tt(k.slice(0,i))+' ‹ '+k.slice(i+1)}return k=='invoice'?'🧾 الفواتير':k.startsWith('prod:')?'📦 '+k.slice(5):k};
+const fname=k=>k.split('/').map((s,i)=>i==0?(s=='invoice'?'الفواتير':s.replace('prod:','')):s).join(' / ');
+const subOpts=(k,pre)=>subsOf(k).flatMap(s=>{const kk=k+'/'+s;return [[kk,pre+'↳ '+s],...subOpts(kk,pre+'   ')]});
+const inF=p=>p.folder=='invoice'||p.folder.startsWith('invoice/')||p.folder.startsWith('prod:');
 async function auto(){if(busy)return;busy=true;try{const T=.75,MG=.03;pg(0,1,'بحمل برنامج الصور (أول مرة بياخد وقت)...');await mnet();
 const A=await all('p');
-const ex=A.filter(p=>(p.folder=='invoice'||p.folder.startsWith('prod:'))&&!p.auto);
+const ex=A.filter(p=>inF(p)&&!p.auto);
 const cand=A.filter(p=>p.folder=='unsorted'&&!(p.faces&&p.faces.length));
 const need=[...ex,...cand].filter(p=>!p.emb);let bad=0,fe=null;
 for(let i=0;i<need.length;i++){const p=need[i];try{p.emb=await emb(await blobOf(p.id));await put('p',p)}catch(e){bad++;fe=fe||e}pg(i+1,need.length,'قراءة شكل الصور '+(i+1)+' / '+need.length+(bad?' — فشل '+bad:''))}
@@ -122,17 +127,25 @@ async function view(id){const bl=await blobOf(id),u=URL.createObjectURL(bl),d=do
 async function home(){nv(0);H('الفولدرات');cur=null;const A=await all('p'),P=await all('u'),cats=JSON.parse(localStorage.cats||'[]');const n=k=>A.filter(p=>p.folder==k).length;
 const rows=[['invoice','🧾','الفواتير','#f59e0b'],['private','🔒','خاص','#ef4444'],...P.filter(u=>!u.priv).map(u=>['person:'+u.id,'👤',u.name,'#3b82f6',1]),...cats.map(c=>['prod:'+c,'📦',c,'#10b981',1]),['unsorted','🖼','غير مقسمة','#64748b'],['review','❓','وجوه غير معروفة','#8b5cf6']];
 V.innerHTML='<div class=bar><button onclick="nc()">+ قسم منتجات</button><button onclick="ppl()">+ شخص جديد</button><button class=g onclick="ed=!ed;home()">'+(ed?'تم ✔':'✏️ تعديل')+'</button></div>'+rows.map(r=>`<div class=f data-k="${r[0]}" data-t="${r[1]} ${r[2]}" onclick="fold(this.dataset.k,this.dataset.t)"><span class=ic style="background:${r[3]}22">${r[1]}</span><span class=nm>${r[2]}</span>${ed&&r[4]?`<button class=dl onclick="event.stopPropagation();rm(this.parentNode.dataset.k)">🗑</button>`:`<b>${n(r[0])}</b>`}</div>`).join('')}
-async function rm(k){if(!confirm('تمسح الفولدر ده؟ الصور نفسها مش هتتمسح، هترجع لـ "غير مقسمة" أو "وجوه غير معروفة".'))return;
-if(k.startsWith('prod:')){const c=JSON.parse(localStorage.cats||'[]').filter(x=>'prod:'+x!=k);localStorage.cats=JSON.stringify(c);for(const p of await all('p'))if(p.folder==k){p.folder='unsorted';await put('p',p)}}
+async function rm(k){const sub=k.includes('/');if(!confirm(sub?'تمسح الفولدر الفرعي ده؟ صوره هترجع للفولدر اللي فوقه.':'تمسح الفولدر ده؟ الصور نفسها مش هتتمسح، هترجع لـ "غير مقسمة" أو "وجوه غير معروفة".'))return;
+const sb=getSubs();
+if(sub){const i=k.lastIndexOf('/'),pk=k.slice(0,i),nm=k.slice(i+1);for(const p of await all('p'))if(p.folder==k||p.folder.startsWith(k+'/')){p.folder=pk;delete p.auto;await put('p',p)}
+sb[pk]=(sb[pk]||[]).filter(x=>x!=nm);Object.keys(sb).forEach(x=>{if(x==k||x.startsWith(k+'/'))delete sb[x]});localStorage.subs=JSON.stringify(sb);fold(pk,tt(pk));return}
+if(k.startsWith('prod:')){const c=JSON.parse(localStorage.cats||'[]').filter(x=>'prod:'+x!=k);localStorage.cats=JSON.stringify(c);for(const p of await all('p'))if(p.folder==k||p.folder.startsWith(k+'/')){p.folder='unsorted';delete p.auto;await put('p',p)}
+Object.keys(sb).forEach(x=>{if(x==k||x.startsWith(k+'/'))delete sb[x]});localStorage.subs=JSON.stringify(sb)}
 else if(k.startsWith('person:')){const id=+k.slice(7);await tx('u','readwrite',o=>o.delete(id));for(const p of await all('p'))if(p.folder==k){p.folder='review';await put('p',p)}}
 home()}
-function nc(){const n=(prompt('اسم القسم')||'').replace(/["'<>]/g,'').trim();if(!n)return;const c=JSON.parse(localStorage.cats||'[]');c.push(n);localStorage.cats=JSON.stringify(c);home()}
+function nc(){const n=(prompt('اسم القسم')||'').replace(/["'<>\/]/g,'').trim();if(!n)return;const c=JSON.parse(localStorage.cats||'[]');c.push(n);localStorage.cats=JSON.stringify(c);home()}
+function ns(){const n=(prompt('اسم الفولدر الفرعي')||'').replace(/["'<>\/]/g,'').trim();if(!n)return;const sb=getSubs();sb[cur]=sb[cur]||[];if(sb[cur].includes(n))return alert('الاسم ده موجود');sb[cur].push(n);localStorage.subs=JSON.stringify(sb);draw()}
+function up(){if(cur&&cur.includes('/')){const pk=cur.slice(0,cur.lastIndexOf('/'));fold(pk,tt(pk))}else home()}
 async function sha(s){return [...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s)))].map(x=>x.toString(16).padStart(2,'0')).join('')}
 async function unlock(){const h=localStorage.pw;if(!h){const a=prompt('اعمل كلمة سر للفولدر الخاص');if(!a)return false;localStorage.pw=await sha(a);return true}const a=prompt('كلمة السر');return !!a&&await sha(a)==h}
 async function fold(k,t){if(k=='private'&&!await unlock())return;cur=k;cur_t=t;S.clear();sel=false;draw()}
-async function draw(){const A=(await all('p')).filter(p=>p.folder==cur),P=await all('u'),cats=JSON.parse(localStorage.cats||'[]');H(cur_t+' ('+A.length+')');
-const opts=[['invoice','الفواتير'],['private','خاص'],...P.filter(u=>!u.priv).map(u=>['person:'+u.id,'👤 '+u.name]),...cats.map(c=>['prod:'+c,c]),['unsorted','غير مقسمة'],['review','وجوه غير معروفة']].map(o=>`<option value="${o[0]}">${o[1]}</option>`).join('');
-V.innerHTML=`<button class=g onclick="home()">→ رجوع</button><button class=g onclick="sel=!sel;S.clear();draw()">${sel?'إلغاء التحديد':'تحديد'}</button>`+(sel?`<button class=g onclick="selAll()">تحديد الكل</button><button onclick="mkp()">👤 تعريف كشخص</button><select id=dst>${opts}</select><button onclick="mv()">نقل المحدد</button><button class=g onclick="del()">حذف المحدد</button>`:'')+grid(A,sel)}
+async function draw(){const AL=await all('p'),A=AL.filter(p=>p.folder==cur),P=await all('u'),cats=JSON.parse(localStorage.cats||'[]');H(cur_t+' ('+A.length+')');
+const canSub=cur=='invoice'||cur.startsWith('prod:');
+const opts=[['invoice','الفواتير'],...subOpts('invoice',''),['private','خاص'],...P.filter(u=>!u.priv).map(u=>['person:'+u.id,'👤 '+u.name]),...cats.flatMap(c=>[['prod:'+c,c],...subOpts('prod:'+c,'')]),['unsorted','غير مقسمة'],['review','وجوه غير معروفة']].map(o=>`<option value="${o[0]}">${o[1]}</option>`).join('');
+const subs=canSub?subsOf(cur).map(s=>{const kk=cur+'/'+s;return `<div class=f data-k="${kk}" data-t="${tt(kk)}" onclick="fold(this.dataset.k,this.dataset.t)"><span class=ic style="background:#10b98122">📂</span><span class=nm>${s}</span><b>${AL.filter(p=>p.folder==kk).length}</b></div>`}).join(''):'';
+V.innerHTML=`<button class=g onclick="up()">→ رجوع</button><button class=g onclick="sel=!sel;S.clear();draw()">${sel?'إلغاء التحديد':'تحديد'}</button>`+(canSub?`<button class=g onclick="ns()">+ فولدر فرعي</button>`:'')+(cur.includes('/')?`<button class=g onclick="rm(cur)">🗑 مسح الفولدر ده</button>`:'')+(sel?`<button class=g onclick="selAll()">تحديد الكل</button><button onclick="mkp()">👤 تعريف كشخص</button><select id=dst>${opts}</select><button onclick="mv()">نقل المحدد</button><button class=g onclick="del()">حذف المحدد</button>`:'')+subs+grid(A,sel)}
 async function selAll(){(await all('p')).filter(p=>p.folder==cur).forEach(p=>S.add(p.id));draw()}
 async function mkp(){if(!S.size)return alert('حدد صور الأول');const n=(prompt('اسم الشخص')||'').replace(/["'<>]/g,'').trim();if(!n)return;const priv=confirm('الشخص ده خاص؟ (موافق = خاص ، إلغاء = عادي)');const d=[],c=[],ps=[];
 for(const id of S){const p=await get('p',id);if(p.faces.length==1){d.push(p.faces[0]);c.push(p.cl&&p.cl[0]||null);ps.push(p)}}
