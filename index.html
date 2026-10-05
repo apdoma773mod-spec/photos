@@ -32,6 +32,7 @@ nav button.on{color:var(--ac);font-weight:700}
 input,select{width:100%;box-sizing:border-box;padding:14px;font-size:16px;border-radius:14px;border:1px solid #dde3f1;margin:5px 0;background:#fff;color:var(--tx);font-family:inherit}
 progress{width:100%;height:10px;border-radius:8px}
 h3{color:var(--mu);font-weight:600}
+a.bt{display:inline-block;background:linear-gradient(135deg,#10b981,#059669);color:#fff;border-radius:14px;padding:12px 18px;font-size:16px;font-weight:600;text-decoration:none}
 </style></head><body>
 <header id="h">صوري</header><div class="c" id="v">جاري التحميل...</div>
 <nav id="nv"><button onclick="home()"><span>📁</span>الفولدرات</button><button onclick="add()"><span>➕</span>إضافة</button><button onclick="ppl()"><span>👤</span>أشخاص</button><button onclick="sort()"><span>⚙️</span>تصنيف</button></nav>
@@ -217,7 +218,38 @@ async function ppl(){nv(2);H('الأشخاص');S.clear();const P=await all('u'),
 V.innerHTML=P.map(u=>`<div class=f><span class=nm>${u.name}${u.priv?' 🔒':''}</span><button class=g onclick="dp(${u.id})">حذف</button></div>`).join('')+'<h3>شخص جديد: اختار صور وشه فيها لوحده</h3>'+grid(A,true)+'<input id=pn placeholder="اسم الشخص"><label><input type=checkbox id=pv style="width:auto"> صوره خاصة (تروح الفولدر المقفول)</label><br><button onclick="sp()">حفظ الشخص</button>'}
 async function sp(){const n=$('pn').value.trim();if(!n||!S.size)return alert('اكتب الاسم واختار صور');const d=[],c=[];for(const id of S){const p=await get('p',id);d.push(p.faces[0]);c.push(p.cl&&p.cl[0]||null)}await put('u',{name:n,desc:d,cl:c,priv:$('pv').checked});await classify();S.clear();ppl()}
 async function dp(id){if(!confirm('تحذف الشخص؟'))return;await tx('u','readwrite',o=>o.delete(id));for(const p of await all('p'))if(p.folder=='person:'+id){p.folder='review';await put('p',p)}ppl()}
-function sort(){nv(3);H('تصنيف');V.innerHTML='<button onclick="invAuto()">🧾 فرز الفواتير تلقائي (السيستم + اسم العميل)</button><button class=g onclick="revInv()">📋 فواتير محتاجة مراجعتك</button><button onclick="auto()">🧠 تصنيف المنتجات والفواتير تلقائي</button><button class=g onclick="undoAuto()">↩️ تراجع عن التصنيف التلقائي</button><button onclick="smart()">✨ تحسين ذكي (يقرأ اللبس)</button><button onclick="redo()">🔄 إعادة توزيع صور الأشخاص</button><button onclick="rescan()">🔍 إعادة قراءة الوجوه (أدق)</button><button onclick="classify().then(()=>alert(\'تم\'))">إعادة مطابقة الوجوه</button><button class=g onclick="dd()">حذف الصور المكررة</button><progress id=pr value=0></progress><p id=st></p>'}
+function sort(){nv(3);H('تصنيف');V.innerHTML='<button onclick="bk()">💾 نسخ احتياطي واستعادة</button><button onclick="invAuto()">🧾 فرز الفواتير تلقائي (السيستم + اسم العميل)</button><button class=g onclick="revInv()">📋 فواتير محتاجة مراجعتك</button><button onclick="auto()">🧠 تصنيف المنتجات والفواتير تلقائي</button><button class=g onclick="undoAuto()">↩️ تراجع عن التصنيف التلقائي</button><button onclick="smart()">✨ تحسين ذكي (يقرأ اللبس)</button><button onclick="redo()">🔄 إعادة توزيع صور الأشخاص</button><button onclick="rescan()">🔍 إعادة قراءة الوجوه (أدق)</button><button onclick="classify().then(()=>alert(\'تم\'))">إعادة مطابقة الوجوه</button><button class=g onclick="dd()">حذف الصور المكررة</button><progress id=pr value=0></progress><p id=st></p>'}
+const BKN=50;let bkIds=[],bkU={};
+async function bk(){nv(3);H('نسخ احتياطي');bkIds=(await tx('p','readonly',o=>o.getAllKeys())).sort((a,b)=>a-b);const n=Math.ceil(bkIds.length/BKN);
+let h='<button class=g onclick="sort()">→ رجوع</button><p style="color:var(--mu)">عندك '+bkIds.length+' صورة. آخر نسخة: '+(localStorage.lastBackup?new Date(localStorage.lastBackup).toLocaleString('ar-EG'):'مفيش')+'<br>لكل جزء: دوس <b>جهّز</b> ثم <b>احفظ</b> واختار تطبيق الملفات. لازم تحفظ كل الأجزاء. الصور الخاصة بتتحفظ من غير تشفير، فخلي الملفات في مكان آمن.</p>';
+for(let i=0;i<n;i++){const c=Math.min(BKN,bkIds.length-i*BKN);h+='<div class=f><span class=nm>جزء '+(i+1)+' من '+n+' ('+c+' صورة)</span><span id="bk'+i+'"><button onclick="bkMake('+i+')">جهّز</button></span></div>'}
+h+='<h3>استعادة</h3><p style="color:var(--mu)">اختار كل أجزاء النسخة مرة واحدة (ملفات .mkb) ودوس استعادة. بتتضاف على الموجود، وأي صورة بنفس الرقم بتتكتب فوقها.</p><input type=file id=rf multiple><button onclick="bkRestore()">استعادة</button><p id=bst></p>';
+V.innerHTML=h}
+async function bkMake(i){const el=$('bk'+i);if(busy)return;busy=true;el.textContent='جاري التجهيز...';
+try{const sl=bkIds.slice(i*BKN,(i+1)*BKN),tot=Math.ceil(bkIds.length/BKN),P=[],parts=[];let off=0;
+for(const id of sl){const p=await get('p',id);if(!p)continue;const bl=await blobOf(id),rec=Object.assign({},p);delete rec.blob;if(bl){rec._o=off;rec._n=bl.size;rec._t=bl.type||'image/jpeg';off+=bl.size;parts.push(bl)}P.push(rec)}
+const meta={v:1,part:i+1,total:tot,date:new Date().toISOString(),ls:{cats:localStorage.cats||null,subs:localStorage.subs||null,pw:localStorage.pw||null},u:await all('u'),p:P};
+const js=new TextEncoder().encode(JSON.stringify(meta)),hd=new Uint8Array(8);hd.set([77,75,66,49]);new DataView(hd.buffer).setUint32(4,js.length);
+const blob=new Blob([hd,js,...parts],{type:'application/octet-stream'});
+if(bkU[i])URL.revokeObjectURL(bkU[i]);bkU[i]=URL.createObjectURL(blob);
+const nm='mekanizm-backup-'+new Date().toISOString().slice(0,10)+'-part'+(i+1)+'of'+tot+'.mkb';
+el.innerHTML='<a class=bt href="'+bkU[i]+'" download="'+nm+'">احفظ</a>';localStorage.lastBackup=new Date().toISOString()}
+catch(e){el.innerHTML='<button onclick="bkMake('+i+')">جهّز</button>';alert('فشل تجهيز الجزء: '+EM(e))}
+busy=false}
+async function bkRestore(){if(busy)return;const fs=[...$('rf').files];if(!fs.length)return alert('اختار ملفات النسخة الأول');busy=true;const st=$('bst');let np=0,nu=0,bad=0,fe=null;
+try{for(let k=0;k<fs.length;k++){const f=fs[k];st.textContent='جاري الاستعادة: ملف '+(k+1)+' / '+fs.length;
+const head=new Uint8Array(await f.slice(0,8).arrayBuffer());if(head[0]!=77||head[1]!=75||head[2]!=66||head[3]!=49){bad++;fe=fe||new Error('الملف مش نسخة صحيحة: '+f.name);continue}
+const len=new DataView(head.buffer).getUint32(4),meta=JSON.parse(await f.slice(8,8+len).text()),base=8+len;
+for(const r of meta.p){const o=r._o,n=r._n,t=r._t;delete r._o;delete r._n;delete r._t;
+try{let buf=null;if(o!=null)buf=await f.slice(base+o,base+o+n).arrayBuffer();await put('p',r);if(buf)await put('b',{id:r.id,buf:buf,type:t});np++}catch(e){bad++;fe=fe||e}}
+for(const u of meta.u||[]){try{await put('u',u);nu++}catch(e){bad++;fe=fe||e}}
+const L=meta.ls||{};
+if(L.cats){const a=JSON.parse(localStorage.cats||'[]'),b=JSON.parse(L.cats);localStorage.cats=JSON.stringify([...new Set([...a,...b])])}
+if(L.subs){const a=getSubs(),b=JSON.parse(L.subs);Object.keys(b).forEach(x=>{a[x]=[...new Set([...(a[x]||[]),...b[x]])]});localStorage.subs=JSON.stringify(a)}
+if(L.pw&&!localStorage.pw)localStorage.pw=L.pw}
+st.textContent='خلصنا ✅ اتستعاد '+np+' صورة و '+nu+' شخص'+(bad?' — فشل '+bad+': '+EM(fe):'')+' — ارجع للفولدرات وراجع'}
+catch(e){alert('حصل خطأ: '+EM(e))}
+busy=false}
 async function rescan(){if(busy)return;busy=true;try{pg(0,1,'بحمل برنامج الوجوه...');await models();const A=(await all('p')).filter(p=>['new','review','unsorted'].includes(p.folder));
 for(let i=0;i<A.length;i++){const p=A[i];try{const r=await faces(await blobOf(p.id));p.faces=r.faces;p.cl=r.cl;p.folder='new';await put('p',p)}catch(e){}pg(i+1,A.length,(i+1)+' / '+A.length)}
 await classify();pg(A.length,A.length,'خلصنا ✅')}catch(e){alert('حصل خطأ: '+EM(e))}busy=false}
