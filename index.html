@@ -2,7 +2,7 @@
 <script>
 function showErr(t){var e=document.createElement('div');e.style='background:#fee2e2;color:#7f1d1d;padding:14px;margin:12px;border-radius:12px;direction:ltr;font:14px monospace;word-break:break-all';e.textContent=t;(document.body||document.documentElement).prepend(e)}
 window.onerror=function(m,s,l){showErr('ERROR: '+m+' (line '+l+')')};
-window.onunhandledrejection=function(ev){showErr('PROMISE ERROR: '+(ev.reason&&ev.reason.message||ev.reason))};
+window.onunhandledrejection=function(ev){var r=ev.reason;showErr('PROMISE ERROR: '+(r&&(r.name?r.name+': ':'')+(r.message||r)||r))};
 </script>
 <meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="صوري"><meta name="theme-color" content="#6366f1">
 <style>
@@ -39,11 +39,11 @@ h3{color:var(--mu);font-weight:600}
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script>
 (function(){const c=document.createElement('canvas');c.width=c.height=180;const x=c.getContext('2d'),g=x.createLinearGradient(0,0,180,180);g.addColorStop(0,'#3b82f6');g.addColorStop(1,'#7c3aed');x.fillStyle=g;x.fillRect(0,0,180,180);x.font='96px sans-serif';x.textAlign='center';x.textBaseline='middle';x.fillText('📷',90,96);const l=document.createElement('link');l.rel='apple-touch-icon';l.href=c.toDataURL('image/png');document.head.append(l)})();
-const $=id=>document.getElementById(id),V=$('v'),H=t=>$('h').textContent=t,EM=e=>(e&&e.message)||e||'خطأ غير معروف';
+const $=id=>document.getElementById(id),V=$('v'),H=t=>$('h').textContent=t,EM=e=>e?((e.name?e.name+': ':'')+(e.message||'')||String(e)):'خطأ غير معروف';
 let db,cur,sel=false,S=new Set(),busy=false,cur_t='',ed=false;
 const TH=.45;
 const open_=()=>new Promise((r,j)=>{const q=indexedDB.open('photos1',1);q.onupgradeneeded=()=>{q.result.createObjectStore('p',{keyPath:'id',autoIncrement:true});q.result.createObjectStore('u',{keyPath:'id',autoIncrement:true})};q.onsuccess=()=>{db=q.result;r()};q.onerror=()=>j(q.error||new Error('فشل فتح التخزين'));q.onblocked=()=>j(new Error('التخزين متعلق'));setTimeout(()=>j(new Error('التخزين مردّش بعد ٨ ثواني')),8000)});
-const tx=(s,m,f)=>new Promise((res,rej)=>{const t=db.transaction(s,m),q=f(t.objectStore(s));t.oncomplete=()=>res(q&&q.result);t.onerror=t.onabort=()=>rej(t.error||new Error('فشل الحفظ في التخزين (ممكن المساحة ناقصة)'))});
+const tx=(s,m,f)=>new Promise((res,rej)=>{try{const t=db.transaction(s,m),q=f(t.objectStore(s));let er=null;q.onerror=()=>{er=q.error};t.oncomplete=()=>res(q&&q.result);t.onerror=t.onabort=()=>rej(er||t.error||new Error('فشل غير معروف في التخزين'))}catch(e){rej(e)}});
 const all=s=>tx(s,'readonly',o=>o.getAll()),put=(s,x)=>tx(s,'readwrite',o=>o.put(x)),get=(s,k)=>tx(s,'readonly',o=>o.get(k));
 async function cv(blob,max){const b=await createImageBitmap(blob);const k=Math.min(1,max/Math.max(b.width,b.height));const c=document.createElement('canvas');c.width=Math.round(b.width*k);c.height=Math.round(b.height*k);c.getContext('2d').drawImage(b,0,0,c.width,c.height);b.close&&b.close();return c}
 const pg=(i,n,t)=>{if($('pr')){$('pr').max=n;$('pr').value=i}if($('st'))$('st').textContent=t};
@@ -65,20 +65,20 @@ async function classify(){const P=await all('u'),A=await all('p');for(const p of
 if(p.faces.length){const m=P.map(u=>[u,score(u,p)]).filter(x=>x[1]<Infinity).sort((a,b)=>a[1]-b[1]).map(x=>x[0]);f=m.length?(m.some(u=>u.priv)?'private':'person:'+m[0].id):'review'}else f='unsorted';
 if(f!=p.folder){p.folder=f;await put('p',p)}}}
 async function redo(){if(!confirm('هعيد توزيع صور الأشخاص. صور المنتجات والفواتير والخاص مش هتتحرك. تكمل؟'))return;const A=await all('p');let n=0;for(const p of A){if(p.folder.startsWith('person:')){p.folder='new';await put('p',p);n++}}await classify();alert('تم، اتعاد توزيع '+n+' صورة')}
-async function smart(){if(busy)return;busy=true;try{pg(0,1,'بحمل برنامج الوجوه...');await models();
+async function smart(){if(busy)return;busy=true;let bad=0,fe=null;try{pg(0,1,'بحمل برنامج الوجوه...');await models();
 const A=(await all('p')).filter(p=>!p.cl&&(['new','review','unsorted'].includes(p.folder)||p.folder.startsWith('person:')));
-for(let i=0;i<A.length;i++){const p=A[i];try{const r=await faces(p.blob);p.faces=r.faces;p.cl=r.cl;await put('p',p)}catch(e){}pg(i+1,A.length,'قراءة '+(i+1)+' / '+A.length)}
+for(let i=0;i<A.length;i++){const p=A[i];try{const r=await faces(p.blob);p.faces=r.faces;p.cl=r.cl;await put('p',p)}catch(e){bad++;fe=fe||e}pg(i+1,A.length,'قراءة '+(i+1)+' / '+A.length+(bad?' — فشل '+bad:''))}
 const P=await all('u'),B=await all('p');
 for(const u of P){const ps=B.filter(p=>p.folder=='person:'+u.id&&p.faces.length==1&&p.cl);if(ps.length){u.desc=ps.map(p=>p.faces[0]);u.cl=ps.map(p=>p.cl[0]);await put('u',u)}}
 for(const p of B){if(p.folder=='review'||p.folder=='unsorted'){p.folder='new';await put('p',p)}}
-await classify();pg(1,1,'خلصنا ✅ راجع الفولدرات')}catch(e){alert('حصل خطأ: '+EM(e))}busy=false}
+await classify();pg(1,1,'خلصنا ✅ راجع الفولدرات'+(bad?' — فشل حفظ '+bad+' صورة، السبب: '+EM(fe):''));if(bad)alert('فشل حفظ '+bad+' صورة. السبب الحقيقي: '+EM(fe))}catch(e){alert('حصل خطأ: '+EM(e)+(fe?' | أول فشل: '+EM(fe):''))}busy=false}
 async function addFiles(fs){pg(0,fs.length,'بحمل برنامج الوجوه...');await models();
-const ex=new Set((await all('p')).map(p=>p.thumb));let ad=0,sk=0;
+const ex=new Set((await all('p')).map(p=>p.thumb));let ad=0,sk=0,bad=0,fe=null;
 for(let i=0;i<fs.length;i++){const f=fs[i];try{const t=(await cv(f,240)).toDataURL('image/jpeg',.7);
 if(ex.has(t)){sk++}else{ex.add(t);const r=await faces(f);
-await put('p',{name:f.name,blob:f,thumb:t,faces:r.faces,cl:r.cl,folder:'new',text:''});ad++}}catch(e){}
+await put('p',{name:f.name,blob:f,thumb:t,faces:r.faces,cl:r.cl,folder:'new',text:''});ad++}}catch(e){bad++;fe=fe||e}
 pg(i+1,fs.length,(i+1)+' / '+fs.length)}
-await classify();pg(fs.length,fs.length,'خلصنا ✅ اتضاف '+ad+' — اتخطى '+sk+' مكرر')}
+await classify();pg(fs.length,fs.length,'خلصنا ✅ اتضاف '+ad+' — اتخطى '+sk+' مكرر'+(bad?' — فشل '+bad+': '+EM(fe):''))}
 function nv(i){[...$('nv').children].forEach((b,j)=>b.classList.toggle('on',i==j))}
 function add(){nv(1);H('إضافة صور');V.innerHTML='<input type=file id=fi multiple accept="image/*"><button id=gb onclick="go()">ابدأ</button><progress id=pr value=0></progress><p id=st></p><p style="color:var(--mu)">اختار ٣٠–٥٠ صورة في المرة، دوس ابدأ <b>مرة واحدة بس</b>، وسيب الشاشة مفتوحة لحد ما تخلص.</p>'}
 async function go(){if(busy)return;const f=[...$('fi').files];if(!f.length)return alert('اختار صور الأول');busy=true;$('gb').disabled=true;$('st').textContent='جاري التحضير...';
