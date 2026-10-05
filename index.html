@@ -75,4 +75,35 @@ const rows=[['invoice','🧾','الفواتير','#f59e0b'],['private','🔒','�
 V.innerHTML='<div class=bar><button onclick="nc()">+ قسم منتجات</button><button onclick="ppl()">+ شخص جديد</button><button class=g onclick="ed=!ed;home()">'+(ed?'تم ✔':'✏️ تعديل')+'</button></div>'+rows.map(r=>`<div class=f data-k="${r[0]}" data-t="${r[1]} ${r[2]}" onclick="fold(this.dataset.k,this.dataset.t)"><span class=ic style="background:${r[3]}22">${r[1]}</span><span class=nm>${r[2]}</span>${ed&&r[4]?`<button class=dl onclick="event.stopPropagation();rm(this.parentNode.dataset.k)">🗑</button>`:`<b>${n(r[0])}</b>`}</div>`).join('')}
 async function rm(k){if(!confirm('تمسح الفولدر ده؟ الصور نفسها مش هتتمسح، هترجع لـ "غير مقسمة" أو "وجوه غير معروفة".'))return;
 if(k.startsWith('prod:')){const c=JSON.parse(localStorage.cats||'[]').filter(x=>'prod:'+x!=k);localStorage.cats=JSON.stringify(c);for(const p of await all('p'))if(p.folder==k){p.folder='unsorted';await put('p',p)}}
-else if(k.startsWith('person:')){const id=+k.slice(7);await tx('u','readwrite',o=>o.del
+else if(k.startsWith('person:')){const id=+k.slice(7);await tx('u','readwrite',o=>o.delete(id));for(const p of await all('p'))if(p.folder==k){p.folder='review';await put('p',p)}}
+home()}
+function nc(){const n=(prompt('اسم القسم')||'').replace(/["'<>]/g,'').trim();if(!n)return;const c=JSON.parse(localStorage.cats||'[]');c.push(n);localStorage.cats=JSON.stringify(c);home()}
+async function sha(s){return [...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s)))].map(x=>x.toString(16).padStart(2,'0')).join('')}
+async function unlock(){const h=localStorage.pw;if(!h){const a=prompt('اعمل كلمة سر للفولدر الخاص');if(!a)return false;localStorage.pw=await sha(a);return true}const a=prompt('كلمة السر');return !!a&&await sha(a)==h}
+async function fold(k,t){if(k=='private'&&!await unlock())return;cur=k;cur_t=t;S.clear();sel=false;draw()}
+async function draw(){const A=(await all('p')).filter(p=>p.folder==cur),cats=JSON.parse(localStorage.cats||'[]');H(cur_t+' ('+A.length+')');
+const opts=[['invoice','الفواتير'],['private','خاص'],...cats.map(c=>['prod:'+c,c]),['unsorted','غير مقسمة'],['review','وجوه غير معروفة']].map(o=>`<option value="${o[0]}">${o[1]}</option>`).join('');
+V.innerHTML=`<button class=g onclick="home()">→ رجوع</button><button class=g onclick="sel=!sel;S.clear();draw()">${sel?'إلغاء التحديد':'تحديد'}</button>`+(sel?`<button class=g onclick="selAll()">تحديد الكل</button><button onclick="mkp()">👤 تعريف كشخص</button><select id=dst>${opts}</select><button onclick="mv()">نقل المحدد</button><button class=g onclick="del()">حذف المحدد</button>`:'')+grid(A,sel)}
+async function selAll(){(await all('p')).filter(p=>p.folder==cur).forEach(p=>S.add(p.id));draw()}
+async function mkp(){if(!S.size)return alert('حدد صور الأول');const n=(prompt('اسم الشخص')||'').replace(/["'<>]/g,'').trim();if(!n)return;const priv=confirm('الشخص ده خاص؟ (موافق = خاص ، إلغاء = عادي)');const d=[],ps=[];
+for(const id of S){const p=await get('p',id);if(p.faces.length==1){d.push(p.faces[0]);ps.push(p)}}
+if(!d.length)return alert('مفيش في المحدد صورة فيها وش واحد بس');
+const uid=await put('u',{name:n,desc:d,priv});for(const p of ps){p.folder=priv?'private':'person:'+uid;await put('p',p)}
+S.clear();await classify();alert('تم! اتعرف الشخص من '+ps.length+' صورة');home()}
+async function mv(){const d=$('dst').value;for(const id of S){const p=await get('p',id);p.folder=d;await put('p',p)}S.clear();draw()}
+async function del(){if(!confirm('تحذف الصور المحددة؟'))return;for(const id of S)await tx('p','readwrite',o=>o.delete(id));S.clear();draw()}
+async function ppl(){nv(2);H('الأشخاص');S.clear();const P=await all('u'),A=(await all('p')).filter(p=>p.faces.length==1&&p.folder=='review');
+V.innerHTML=P.map(u=>`<div class=f><span class=nm>${u.name}${u.priv?' 🔒':''}</span><button class=g onclick="dp(${u.id})">حذف</button></div>`).join('')+'<h3>شخص جديد: اختار صور وشه فيها لوحده</h3>'+grid(A,true)+'<input id=pn placeholder="اسم الشخص"><label><input type=checkbox id=pv style="width:auto"> صوره خاصة (تروح الفولدر المقفول)</label><br><button onclick="sp()">حفظ الشخص</button>'}
+async function sp(){const n=$('pn').value.trim();if(!n||!S.size)return alert('اكتب الاسم واختار صور');const d=[];for(const id of S)d.push((await get('p',id)).faces[0]);await put('u',{name:n,desc:d,priv:$('pv').checked});await classify();S.clear();ppl()}
+async function dp(id){if(!confirm('تحذف الشخص؟'))return;await tx('u','readwrite',o=>o.delete(id));for(const p of await all('p'))if(p.folder=='person:'+id){p.folder='review';await put('p',p)}ppl()}
+function sort(){nv(3);H('تصنيف');V.innerHTML='<button onclick="redo()">🔄 إعادة توزيع صور الأشخاص</button><button onclick="rescan()">🔍 إعادة قراءة الوجوه (أدق)</button><button onclick="classify().then(()=>alert(\'تم\'))">إعادة مطابقة الوجوه</button><button onclick="inv()">🧾 فرز الفواتير (بطيء)</button><button class=g onclick="dd()">حذف الصور المكررة</button><progress id=pr value=0></progress><p id=st></p>'}
+async function rescan(){if(busy)return;busy=true;try{pg(0,1,'بحمل برنامج الوجوه...');await models();const A=(await all('p')).filter(p=>['new','review','unsorted'].includes(p.folder));
+for(let i=0;i<A.length;i++){const p=A[i];try{p.faces=await faces(p.blob);p.folder='new';await put('p',p)}catch(e){}pg(i+1,A.length,(i+1)+' / '+A.length)}
+await classify();pg(A.length,A.length,'خلصنا ✅')}catch(e){alert('حصل خطأ: '+e.message)}busy=false}
+async function dd(){const A=await all('p'),s=new Set();let n=0;for(const p of A){if(s.has(p.thumb)){await tx('p','readwrite',o=>o.delete(p.id));n++}else s.add(p.thumb)}alert('اتحذف '+n+' صورة مكررة')}
+async function inv(){const A=(await all('p')).filter(p=>p.folder=='unsorted');pg(0,A.length,'بحمل قراءة الكتابة...');const w=await Tesseract.createWorker('ara+eng');let k=0;
+for(let i=0;i<A.length;i++){const p=A[i];try{const t=(await w.recognize(await cv(p.blob,1400))).data.text;p.text=t;if((t.match(/فاتور|اجمالي|إجمالي|المجموع|الضريب|invoice|total|receipt/gi)||[]).length>=2){p.folder='invoice';k++}await put('p',p)}catch(e){}
+pg(i+1,A.length,(i+1)+' / '+A.length+' — فواتير: '+k)}await w.terminate()}
+open_().then(()=>{navigator.storage&&navigator.storage.persist&&navigator.storage.persist();return home()}).catch(e=>{showErr('مشكلة: '+(e&&e.message||e))});
+</script></body></html>
+
