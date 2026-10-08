@@ -146,8 +146,13 @@ async function api(u,o={}){o.headers=Object.assign({'x-pass':pass()},o.headers||
 const J=(m,b)=>({method:m,headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});
 const imgUrl=(d,i)=>d.imgs?d.imgs[i]:`/api/drafts/${d.id}/img/${i}?pass=${encodeURIComponent(pass())}`;
 const frameUrl=()=>demo()?demo().frame:`/api/frame.png?pass=${encodeURIComponent(pass())}`;
-let tt;function toast(m,k){const t=$('toast');t.innerHTML=`<div class="toast ${k||''}">${esc(m)}</div>`;clearTimeout(tt);tt=setTimeout(()=>t.innerHTML='',3600)}
+let tt;function toast(m,k){const t=$('toast');t.innerHTML=`<div class="toast ${k||''}">${esc(m)}</div>`;clearTimeout(tt);tt=setTimeout(()=>t.innerHTML='',k==='bad'?10000:3600)}
 const load=src=>new Promise((r,j)=>{const i=new Image();i.onload=()=>r(i);i.onerror=()=>j(new Error('الصورة مش بتفتح'));i.src=src});
+// صور الآيفون HEIC بتتحوّل JPG في الأداة أوتوماتيك
+const isHeic=f=>/hei[cf]/i.test(f.type)||/\.hei[cf]$/i.test(f.name);
+async function toJpg(f){if(!isHeic(f))return f;toast('بحوّل صورة الآيفون '+f.name+'...');
+ const r=await fetch('/api/heic',{method:'POST',headers:{'x-pass':pass()},body:f});if(!r.ok)throw new Error('heic');
+ return new File([await r.blob()],f.name.replace(/\.hei[cf]$/i,'')+'.jpg',{type:'image/jpeg'})}
 const fileImg=async f=>{const u=URL.createObjectURL(f);try{return await load(u)}finally{}};
 const ago=iso=>{if(!iso)return '';const m=Math.round((Date.now()-new Date(iso))/60000);if(m<1)return 'دلوقتي';if(m<60)return 'من '+m+' دقيقة';const h=Math.round(m/60);if(h<24)return 'من '+h+' ساعة';return new Date(iso).toLocaleDateString('ar-EG')};
 
@@ -191,10 +196,10 @@ function vNew(){const m=S.match;
  return head('منتج جديد','اكتب الاسم وحط الصور، والأداة تطابق الكود وتركّب الفريم وتكتب الوصف.')+
  `<div class="grid2"><div class="card form"><label class="f">اسم المنتج (زي ما هيظهر في الموقع)<input id="n_name" placeholder="مثال: مفصلة هيدروليك كاتم للصوت" autocomplete="off"></label>
  <div id="n_match"></div>
- <div class="row"><label class="f">الكود<input id="n_code" class="code" placeholder="يتكتب أوتوماتيك"></label><label class="f">القسم<select id="n_sec"><option value="">اختار القسم</option>${S.secs.map(s=>`<option value="${esc(s.id)}">${esc(s.name)}</option>`).join('')}</select></label></div>
+ <div class="row"><label class="f">الكود<input id="n_code" class="code" placeholder="يتكتب أوتوماتيك"></label><label class="f">القسم<select id="n_sec"><option value="">اختار القسم</option>${S.secs.map(s=>`<option value="${esc(s.id)}">${esc(s.name)}</option>`).join('')}<option value="__new">➕ قسم جديد...</option></select></label></div>
  <div><div class="drop" id="n_drop" tabindex="0">${ic('up')}<b>اسحب الصور هنا أو دوس للاختيار</b><span>تقدر تختار لحد ٣٠ صورة مرة واحدة</span></div><input id="n_files" type="file" accept="image/*" multiple hidden></div>
  <div class="thumbs" id="n_th"></div>
- <label class="f">الوصف (سيبه فاضي وهيتكتب أوتوماتيك)<textarea id="n_desc" placeholder="هيتكتب بالذكاء الاصطناعي من الصورة والاسم"></textarea></label>
+ <label class="f">معلومة عن المنتج (اختياري) — الوصف الكامل هيتكتب أوتوماتيك<textarea id="n_desc" placeholder="مثال: بتستحمل ٤٠ كيلو، متاحة مقاس ٤٥ و٥٠ سم، ضمان سنة"></textarea></label>
  <button class="btn gold" id="n_go" disabled>${ic('wand')}جهّز المنتج</button></div>
  <div class="card"><h2>${ic('img',20)} معاينة بالفريم</h2><div class="stage" id="n_stage"><div class="empty">${ic('img')}<p>الصور هتظهر هنا جوه الفريم</p></div></div></div></div>`}
 let matchT;
@@ -202,21 +207,28 @@ async function newPreview(){const st=$('n_stage');if(!st)return;if(!S.nImgs.leng
  st.replaceChildren(drawFramed(S.nImgs[S.nCur].im,$('n_code').value.trim()));
  $('n_th').innerHTML=S.nImgs.map((o,i)=>`<div class="th ${i===S.nCur?'on':''}" data-i="${i}"><img src="${o.im.src}" alt=""><button class="x" data-x="${i}" aria-label="شيل">×</button></div>`).join('');
  $('n_th').querySelectorAll('.th').forEach(t=>t.onclick=e=>{if(e.target.dataset.x!=null){S.nImgs.splice(+e.target.dataset.x,1);S.nCur=0}else S.nCur=+t.dataset.i;newPreview();nReady()})}
-function nReady(){const b=$('n_go');if(b)b.disabled=!($('n_name').value.trim()&&S.nImgs.length)}
+function nReady(){const b=$('n_go');if(!b||b.querySelector('.spin'))return;const n=$('n_name').value.trim(),k=S.nImgs.length;b.disabled=!(n&&k);
+ b.innerHTML=ic('wand')+(n&&k?`جهّز المنتج (${k} صورة)`:!n&&!k?'اكتب الاسم وحط الصور':!n?'اكتب اسم المنتج الأول':'حط صورة واحدة على الأقل')}
 function showMatch(){const el=$('n_match');if(!el)return;const m=S.match,n=$('n_name').value.trim();if(!n||!m){el.innerHTML='';return}
  if(m.match){const diff=m.match.name.trim()!==n;el.innerHTML=`<div class="note ok">${ic('check',18)}<span>الكود <span class="code">${esc(m.match.code)}</span> — في السيستم باسم «${esc(m.match.name)}»</span></div>`+(diff?`<div class="note warn" style="margin-top:8px">${ic('sync',18)}<span>الاسم مختلف، هيتغير في السيستم لـ «${esc(n)}» بعد الرفع.</span></div>`:'')}
  else{const cs=(m.candidates||[]).filter(c=>c.score>.3);el.innerHTML=cs.length?`<div class="note warn">${ic('warn',18)}<span>مش متأكد من الكود. اختار المنتج الصح:</span></div><div class="mini" style="margin-top:8px">${cs.map(c=>`<button class="btn ghost sm" data-pick="${esc(c.code)}"><span class="code">${esc(c.code)}</span> ${esc(c.name)}</button>`).join('')}</div>`:`<div class="note bad">${ic('warn',18)}<span>مالقيتش منتج بالاسم ده في السيستم. بعد التجهيز تقدر تنشئه في السيستم بكود جديد.</span></div>`}
  el.querySelectorAll('[data-pick]').forEach(b=>b.onclick=()=>{$('n_code').value=b.dataset.pick;newPreview()})}
 const AFTER={};
 AFTER.new=()=>{const nm=$('n_name'),dz=$('n_drop'),fi=$('n_files');
- const add=async fs=>{for(const f of fs){if(!/^image\//.test(f.type))continue;try{S.nImgs.push({f,im:await fileImg(f)})}catch(e){toast(e.message,'bad')}}S.nCur=Math.max(0,Math.min(S.nCur,S.nImgs.length-1));newPreview();nReady()};
+ // بنقبل الصورة بالامتداد كمان (ويندوز ساعات مبيقولش نوعها)، وأي صورة مش بتفتح بنقول السبب بدل ما تختفي
+ const add=async fs=>{let ok=0;const bad=[];for(const f of fs){const isImg=/^image\//.test(f.type)||/\.(jpe?g|png|webp|gif|bmp|jfif|heic|heif|avif)$/i.test(f.name);
+   if(!isImg){bad.push(f.name+' (مش صورة)');continue}
+   try{const g=await toJpg(f);S.nImgs.push({f:g,im:await fileImg(g)});ok++}catch(e){bad.push(f.name)}}
+  S.nCur=Math.max(0,Math.min(S.nCur,S.nImgs.length-1));try{newPreview()}catch(e){toast('المعاينة وقفت: '+e.message,'bad')}nReady();
+  if(bad.length)toast('الصور دي مش هتترفع: '+bad.join('، ')+' — الملف ده مش صورة سليمة','bad');
+  else if(ok)toast(`✔ اتضاف ${ok} صورة`+(nm.value.trim()?' — دوس «جهّز المنتج»':' — اكتب اسم المنتج فوق وبعدين دوس «جهّز المنتج»'),'ok')};
  dz.onclick=()=>fi.click();dz.onkeydown=e=>{if(e.key==='Enter'||e.key===' ')fi.click()};fi.onchange=()=>{add([...fi.files]);fi.value=''};
  dz.ondragover=e=>{e.preventDefault();dz.classList.add('over')};dz.ondragleave=()=>dz.classList.remove('over');dz.ondrop=e=>{e.preventDefault();dz.classList.remove('over');add([...e.dataTransfer.files])};
  nm.oninput=()=>{nReady();clearTimeout(matchT);matchT=setTimeout(async()=>{const v=nm.value.trim();if(!v){S.match=null;showMatch();return}try{S.match=await api('/api/match?name='+encodeURIComponent(v));if(S.match.match&&!$('n_code').dataset.m)$('n_code').value=S.match.match.code;showMatch();newPreview()}catch(e){}},350)};
  $('n_code').oninput=()=>{$('n_code').dataset.m=1;newPreview()};
  $('n_go').onclick=async()=>{const b=$('n_go');b.disabled=true;b.innerHTML='<span class="spin"></span> بجهّز... (ممكن ياخد دقيقة)';
-  const fd=new FormData();fd.append('name',nm.value.trim());fd.append('code',$('n_code').value.trim());fd.append('sec',$('n_sec').value);S.nImgs.forEach(o=>fd.append('images',o.f));
-  try{const d=await api('/api/drafts',{method:'POST',body:fd});const desc=$('n_desc').value.trim();if(desc)await api('/api/drafts/'+d.id,J('PATCH',{description:desc}));
+  const fd=new FormData();fd.append('name',nm.value.trim());fd.append('code',$('n_code').value.trim());fd.append('sec',$('n_sec').value);fd.append('hint',$('n_desc').value.trim());S.nImgs.forEach(o=>fd.append('images',o.f));
+  try{const d=await api('/api/drafts',{method:'POST',body:fd});
    S.nImgs=[];S.match=null;await reload();S.page='review';S.open=d.id;render();toast('المنتج جاهز للمراجعة','ok')}catch(e){toast(e.message,'bad');b.disabled=false;b.innerHTML=ic('wand')+'جهّز المنتج'}};
  showMatch();newPreview();nReady()};
 
@@ -224,7 +236,7 @@ AFTER.new=()=>{const nm=$('n_name'),dz=$('n_drop'),fi=$('n_files');
 let bid=0;const newRow=(n)=>({id:++bid,name:n||'',files:[],ims:[],st:'wait',msg:''});
 function vBatch(){if(!S.batch.length)S.batch=[newRow(),newRow(),newRow()];
  return head('رفع دفعة','جهّز كذا منتج مرة واحدة: صف لكل منتج (الاسم + صوره).',`<button class="btn ghost" id="b_add">${ic('plus')}صف جديد</button><button class="btn gold" id="b_go">${ic('wand')}جهّز الكل</button>`)+
- `<div class="card form" style="margin-bottom:16px"><div class="row"><label class="f">القسم لكل المنتجات (اختياري)<select id="b_sec"><option value="">بدون، هحدده بعدين</option>${S.secs.map(s=>`<option value="${esc(s.id)}">${esc(s.name)}</option>`).join('')}</select></label>
+ `<div class="card form" style="margin-bottom:16px"><div class="row"><label class="f">القسم لكل المنتجات (اختياري)<select id="b_sec"><option value="">بدون، هحدده بعدين</option>${S.secs.map(s=>`<option value="${esc(s.id)}">${esc(s.name)}</option>`).join('')}<option value="__new">➕ قسم جديد...</option></select></label>
  <label class="f">الصق أسماء المنتجات (اسم في كل سطر) وهتتحول لصفوف<textarea id="b_paste" style="min-height:48px" placeholder="مفصلة هيدروليك كاتم&#10;مقبض ذهبي ٢٨٨ مم"></textarea></label></div><div><button class="btn ghost sm" id="b_paste_go">حوّل الأسماء لصفوف</button></div></div>
  <div class="list" id="b_rows">${S.batch.map(rowHtml).join('')}</div>`}
 function rowHtml(r){const stc={wait:['في الانتظار','gray'],run:['جاري التجهيز','info'],done:['اتجهز','ok'],err:['فشل','bad']}[r.st];
@@ -236,10 +248,10 @@ AFTER.batch=()=>{const rows=$('b_rows'),by=id=>S.batch.find(r=>r.id===id);
  function bind(){rows.querySelectorAll('.rowx').forEach(el=>{const r=by(+el.dataset.r),fi=el.querySelector('[data-fi]');
   el.querySelector('[data-f=name]').oninput=e=>r.name=e.target.value;
   el.querySelector('[data-pickf]').onclick=()=>fi.click();
-  fi.onchange=async()=>{for(const f of fi.files){r.files.push(f);try{r.ims.push(await fileImg(f))}catch(e){}}redraw()};
+  fi.onchange=async()=>{for(const f0 of [...fi.files]){try{const f=await toJpg(f0);r.ims.push(await fileImg(f));r.files.push(f)}catch(e){toast('الصورة دي مش بتفتح: '+f0.name,'bad')}}redraw()};
   el.querySelectorAll('[data-rx]').forEach(b=>b.onclick=()=>{r.files.splice(+b.dataset.rx,1);r.ims.splice(+b.dataset.rx,1);redraw()});
   const dl=el.querySelector('[data-del]');if(dl)dl.onclick=()=>{S.batch=S.batch.filter(x=>x!==r);redraw()};
-  el.ondragover=e=>e.preventDefault();el.ondrop=async e=>{e.preventDefault();for(const f of e.dataTransfer.files){if(/^image\//.test(f.type)){r.files.push(f);try{r.ims.push(await fileImg(f))}catch(_){}}}redraw()}})}
+  el.ondragover=e=>e.preventDefault();el.ondrop=async e=>{e.preventDefault();for(const f0 of [...e.dataTransfer.files]){if(/^image\//.test(f0.type)||isHeic(f0)){try{const f=await toJpg(f0);r.ims.push(await fileImg(f));r.files.push(f)}catch(_){toast('الصورة دي مش بتفتح: '+f0.name,'bad')}}}redraw()}})}
  bind();$('b_add').onclick=()=>{S.batch.push(newRow());redraw()};
  $('b_paste_go').onclick=()=>{const ls=$('b_paste').value.split('\n').map(x=>x.trim()).filter(Boolean);if(!ls.length)return;S.batch=S.batch.filter(r=>r.name||r.files.length);ls.forEach(n=>S.batch.push(newRow(n)));$('b_paste').value='';redraw()};
  $('b_go').onclick=async()=>{const todo=S.batch.filter(r=>r.st!=='done'&&r.name.trim()&&r.files.length);if(!todo.length)return toast('كمّل الاسم والصور في صف واحد على الأقل','bad');
@@ -280,14 +292,14 @@ function drawer(){const d=S.drafts.find(x=>x.id===S.open);if(!d){S.open=null;ret
  ${live?`<div class="note ok">${ic('check',18)}<span>اترفع على الموقع. <a href="${esc(d.site&&d.site.url)}" target="_blank" rel="noopener" style="color:inherit">افتح المنتج ↗</a></span></div>`:''}
  <div class="card"><div class="stage" id="d_stage" style="margin-bottom:12px"></div><div class="thumbs" id="d_th">${[...Array(d.count).keys()].map(i=>`<div class="th ${rem.has(i)?'off':''}" data-i="${i}"><img src="${imgUrl(d,i)}" alt="">${live?'':`<button class="x" data-x="${i}" aria-label="${rem.has(i)?'رجّع':'شيل'}">${rem.has(i)?'↩':'×'}</button>`}</div>`).join('')}</div></div>
  <div class="card form"><label class="f">اسم المنتج<input id="d_name" value="${esc(d.name)}" ${dis}></label>
- <div class="row"><label class="f">الكود<input id="d_code" class="code" value="${esc(d.code)}" ${dis}></label><label class="f">السعر (ج.م)<input id="d_price" type="number" min="0" step="any" value="${d.price||''}" placeholder="من السيستم" ${dis}></label><label class="f">القسم<select id="d_sec" ${dis}><option value="">اختار القسم</option>${S.secs.map(s=>`<option value="${esc(s.id)}" ${s.id===d.sec?'selected':''}>${esc(s.name)}</option>`).join('')}</select></label></div>
+ <div class="row"><label class="f">الكود<input id="d_code" class="code" value="${esc(d.code)}" ${dis}></label><label class="f">السعر (ج.م)<input id="d_price" type="number" min="0" step="any" value="${d.price||''}" placeholder="من السيستم" ${dis}></label><label class="f">القسم<select id="d_sec" ${dis}><option value="">اختار القسم</option>${S.secs.map(s=>`<option value="${esc(s.id)}" ${s.id===d.sec?'selected':''}>${esc(s.name)}</option>`).join('')}<option value="__new">➕ قسم جديد...</option></select></label></div>
  ${d.candidates.length&&!live?`<div><p class="hint" style="margin-bottom:6px">مقترحات من السيستم:</p><div class="mini">${d.candidates.map(c=>`<button class="btn ghost sm" data-pick="${esc(c.code)}"><span class="code">${esc(c.code)}</span> ${esc(c.name)}</button>`).join('')}</div></div>`:''}
  <label class="f">الوصف<textarea id="d_desc" ${dis}>${esc(d.description)}</textarea></label></div>
  ${!live&&!d.code?`<div class="card form"><h2>${ic('plus',20)} المنتج مش في السيستم</h2><p class="hint">اختار منتج من المقترحات فوق لو هو موجود فعلًا، أو أنشئه دلوقتي في السيستم بكود جديد بيتحسب لوحده (آخر كود + 1).</p>
  <div class="row"><label class="f">سعر البيع<input id="c_price" type="number" min="0" step="any" inputmode="decimal"></label><label class="f">سعر الشراء (اختياري)<input id="c_cost" type="number" min="0" step="any" inputmode="decimal"></label></div>
  <div class="row"><label class="f">الكمية اللي عندك<input id="c_qty" type="number" min="0" step="any" inputmode="decimal" value="0"></label><label class="f">الوحدة<input id="c_unit" value="قطعة"></label></div>
  <button class="btn" id="c_go">${ic('plus',18)}أنشئ في السيستم</button></div>`:''}
- <div class="card"><h2>${ic('link',20)} كتالوج الواتساب</h2><p class="hint" style="margin-bottom:10px">${S.status&&S.status.wa?'بيتضاف لوحده وقت الرفع. ولو حبيت تضيفه يدوي:':'الكتالوج مش متوصل بالأداة. انسخ النص وحمّل الصور وضيفهم من تطبيق واتساب بيزنس:'}</p><div class="mini"><button class="btn ghost sm" id="d_cp">نسخ نص المنتج</button><button class="btn ghost sm" id="d_dl">تحميل الصور</button></div></div>
+ <div class="card"><h2>${ic('link',20)} كتالوج الواتساب</h2><p class="hint" style="margin-bottom:10px">دوس «ابعتلي على الواتساب» وهتوصلك الصور بالفريم والنص جاهزين. من تطبيق واتساب بيزنس: الكتالوج ← إضافة منتج ← حط الصور والزق النص (السعر سيبه فاضي).</p><div class="mini"><button class="btn sm" id="d_wa_send">📲 ابعتلي على الواتساب</button><button class="btn ghost sm" id="d_cp">نسخ نص المنتج</button><button class="btn ghost sm" id="d_dl">تحميل الصور</button></div></div>
  ${live?'':`${S.status&&S.status.wa?`<label class="mini" style="gap:8px;font-weight:700"><input type="checkbox" id="d_wa" class="cb" checked> ضيف في كتالوج الواتساب</label>`:''}<div class="mini" style="justify-content:space-between"><div class="mini"><button class="btn ghost" id="d_save">حفظ</button><button class="btn ghost" id="d_regen">${ic('wand',18)}وصف جديد</button></div><div class="mini"><button class="btn red" id="d_del">${ic('trash',18)}حذف</button><button class="btn gold" id="d_pub">${ic('rocket',18)}ارفع على الموقع</button></div></div>`}
  ${live?`<div class="mini"><button class="btn red" id="d_del">${ic('trash',18)}حذف من الأداة</button></div>`:''}</div>`;
  document.body.append(v);const close=()=>{S.open=null;v.remove()};v.onclick=e=>{if(e.target===v)close()};$('d_close').onclick=close;
@@ -301,7 +313,8 @@ function drawer(){const d=S.drafts.find(x=>x.id===S.open);if(!d){S.open=null;ret
  const rg=$('d_regen');if(rg)rg.onclick=async()=>{rg.disabled=true;rg.innerHTML='<span class="spin dk"></span>';try{const n=await api('/api/drafts/'+d.id+'/describe',{method:'POST'});$('d_desc').value=n.description;await reload()}catch(e){toast(e.message,'bad')}rg.disabled=false;rg.innerHTML=ic('wand',18)+'وصف جديد'};
  const pb=$('d_pub');if(pb)pb.onclick=async()=>{pb.disabled=true;pb.innerHTML='<span class="spin"></span> برفع...';try{await save();await api('/api/drafts/'+d.id+'/publish',J('POST',{catalog:!$('d_wa')||$('d_wa').checked}));await reload();toast('اترفع على الموقع ✅','ok');drawer();render()}catch(e){toast(e.message,'bad');pb.disabled=false;pb.innerHTML=ic('rocket',18)+'ارفع على الموقع'}};
  const cg=$('c_go');if(cg)cg.onclick=async()=>{if(!d.sec&&!confirm('مفيش قسم متحدد، التصنيف في السيستم هيبقى فاضي. تكمل؟'))return;cg.disabled=true;cg.innerHTML='<span class="spin"></span> بنشئ...';try{const n=await api('/api/drafts/'+d.id+'/create-in-system',J('POST',{price:$('c_price').value,cost:$('c_cost').value,qty:$('c_qty').value,unit:$('c_unit').value}));await reload();toast('اتعمل في السيستم بكود '+n.code,'ok');drawer();render()}catch(e){toast(e.message,'bad');cg.disabled=false;cg.innerHTML=ic('plus',18)+'أنشئ في السيستم'}};
- $('d_cp').onclick=async()=>{const f=fields(),url=d.site&&d.site.url&&d.site.url!=='#'?'\n'+d.site.url:'',t=f.name+(f.price?'\nالسعر: '+f.price+' ج.م':'')+(f.code?'\nالكود: '+f.code:'')+(f.description?'\n\n'+f.description:'')+url;try{await navigator.clipboard.writeText(t);toast('اتنسخ — الصقه في الكتالوج','ok')}catch(e){const a=document.createElement('textarea');a.value=t;document.body.append(a);a.select();try{document.execCommand('copy');toast('اتنسخ — الصقه في الكتالوج','ok')}catch(_){toast('مقدرتش أنسخ، انسخ الوصف يدوي','bad')}a.remove()}};
+ $('d_cp').onclick=async()=>{const f=fields(),url=d.site&&d.site.url&&d.site.url!=='#'?'\n'+d.site.url:'',t=f.name+(f.code?'\nالكود: '+f.code:'')+(f.description?'\n\n'+f.description:'')+url;try{await navigator.clipboard.writeText(t);toast('اتنسخ — الصقه في الكتالوج','ok')}catch(e){const a=document.createElement('textarea');a.value=t;document.body.append(a);a.select();try{document.execCommand('copy');toast('اتنسخ — الصقه في الكتالوج','ok')}catch(_){toast('مقدرتش أنسخ، انسخ الوصف يدوي','bad')}a.remove()}};
+ $('d_wa_send').onclick=async()=>{const b=$('d_wa_send');b.disabled=true;b.innerHTML='<span class="spin"></span> ببعت...';try{if(d.status!=='published')await save();const r=await api('/api/drafts/'+d.id+'/send-wa',J('POST',{}));toast(r.ok?'اتبعت '+r.images+' صور + النص على الواتساب 📲 — بص على موبايلك':r.msg,r.ok?'ok':'')}catch(e){toast(e.message,'bad')}b.disabled=false;b.innerHTML='📲 ابعتلي على الواتساب'};
  $('d_dl').onclick=async()=>{const ids=[...Array(d.count).keys()].filter(i=>!rem.has(i));for(const i of ids){const a=document.createElement('a');a.href=imgUrl(d,i);a.download=(d.code||'img')+'-'+(i+1)+'.jpg';document.body.append(a);a.click();a.remove();await new Promise(r=>setTimeout(r,350))}toast('نزلت '+ids.length+' صور','ok')};
  $('d_del').onclick=async()=>{if(!confirm('تمسح المنتج ده من الأداة؟'))return;await api('/api/drafts/'+d.id,{method:'DELETE'});await reload();close();render()}}
 
@@ -340,4 +353,11 @@ async function boot(){try{
  api('/api/status').then(s=>{S.status=s;const f=document.querySelector('.side-foot');if(f)f.innerHTML=`<span><i class="dot ${s.supabase?'ok':''}"></i>الموقع والسيستم</span><span><i class="dot ${s.claude?'ok':''}"></i>كتابة الوصف</span><span><i class="dot ${s.wa?'ok':''}"></i>كتالوج الواتساب</span>`;if(S.page==='set')render()}).catch(()=>{})}
  catch(e){if(e.message!=='auth'){$('root').innerHTML=`<div class="card login"><h1>مش قادر أتصل</h1><div class="note bad">${esc(e.message)}</div><button class="btn" onclick="boot()">جرّب تاني</button></div>`}}}
 if(!window.__DEMO_DEFER__)boot();
-</script></body></html>
+/* قسم جديد: لو القسم مش موجود، اكتبه ويتعمل على الموقع فعلاً */
+document.addEventListener('change',async e=>{const sel=e.target;if(!(sel instanceof HTMLSelectElement)||sel.value!=='__new')return;e.stopImmediatePropagation();
+ const prev=sel.dataset.prev||'';const n=(prompt('اسم القسم الجديد (هيظهر على الموقع):')||'').trim();if(!n){sel.value=prev;return}
+ try{const r=await api('/api/sections',J('POST',{name:n}));S.secs=await api('/api/sections');
+  document.querySelectorAll('select').forEach(x=>{if(![...x.options].some(o=>o.value==='__new'))return;if(![...x.options].some(o=>o.value===r.id)){const o=new Option(r.name,r.id);x.insertBefore(o,x.querySelector('option[value="__new"]'))}});
+  sel.value=r.id;sel.dataset.prev=r.id;sel.dispatchEvent(new Event('change',{bubbles:true}));toast(r.existed?'القسم ده موجود خلاص — اخترتهولك':'اتعمل قسم «'+r.name+'» على الموقع ✅','ok')}
+ catch(err){toast(err.message,'bad');sel.value=prev}},true);
+document.addEventListener('focusin',e=>{if(e.target instanceof HTMLSelectElement)e.target.dataset.prev=e.target.value},true);</script></body></html>
