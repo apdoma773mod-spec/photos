@@ -28,4 +28,24 @@ async function publish({ name, description, sec, code, images }) {
   throw new Error('الموقع اتعدل من مكان تاني، جرّب تاني');
 }
 
-module.exports = { publish, sections };
+// قسم جديد على الموقع (نفس شكل أقسام shop.html: {id, name}) — لو موجود بنفس الاسم بنرجّعه
+async function addSection(name) {
+  name = String(name || '').replace(/\s+/g, ' ').trim();
+  if (name.length < 2) throw new Error('اكتب اسم القسم');
+  const nn = s => String(s).replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').replace(/\s+/g, ' ').trim();
+  for (let i = 0; i < 4; i++) {
+    const row = await getRow();
+    const secs = row.data.sections || (row.data.sections = []);
+    const same = secs.find(s => nn(s.name) === nn(name));
+    if (same) return { id: same.id, name: same.name, existed: true };
+    const nums = secs.map(s => (/^s(\d+)$/.exec(s.id) || [])[1]).filter(Boolean).map(Number);
+    let id = nums.length ? 's' + (Math.max(...nums) + 1) : uid();
+    while (secs.some(s => s.id === id)) id = uid();
+    secs.push({ id, name });
+    const ok = await json(`/rest/v1/site_content?id=eq.main&version=eq.${row.version}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ data: row.data, version: row.version + 1, updated_at: new Date().toISOString() }) });
+    if (ok.length) return { id, name };
+  }
+  throw new Error('الموقع اتعدل من مكان تاني، جرّب تاني');
+}
+
+module.exports = { publish, sections, addSection };

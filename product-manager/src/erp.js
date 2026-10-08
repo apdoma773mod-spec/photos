@@ -37,7 +37,13 @@ async function useTables() {
 async function list() {
   if (cache && Date.now() - cacheAt < 60e3) return cache;
   if (await useTables()) {
-    cache = (await json('/rest/v1/mk_products?select=code,name,price&limit=10000')).map(x => ({ code: String(x.code || ''), name: String(x.name || ''), price: +x.price || 0 }));
+    // السيرفر بيرجّع 1000 صف بالكتير في المرة — بنجيب الكل على دفعات
+    const rows = [];
+    for (let from = 0; ; from += 1000) {
+      const part = await json(`/rest/v1/mk_products?select=code,name,price&order=id&offset=${from}&limit=1000`);
+      rows.push(...part); if (part.length < 1000) break;
+    }
+    cache = rows.map(x => ({ code: String(x.code || ''), name: String(x.name || ''), price: +x.price || 0 }));
   } else {
     const r = await json('/rest/v1/app_state?select=data&owner=eq.' + await userId());
     cache = ((r[0] && r[0].data && r[0].data.products) || []).map(x => ({ code: String(x.code || ''), name: String(x.name || ''), price: +x.price || 0 }));
@@ -74,11 +80,15 @@ async function rename(code, newName) {
   throw new Error('السيستم اتعدل من مكان تاني، جرّب تاني');
 }
 
-// system codes are plain numbers (1,2,3...): next = highest numeric code + 1, same rule as the app's nextCode()
+// أكواد السيستم الحقيقية شكلها P0001…P1250 (ومعاهم شوية أرقام عادية): الجديد = أكبر رقم + 1 بنفس الشكل P####
 async function nextCode() {
-  let m = 0;
-  for (const p of await list()) { const n = parseInt(p.code, 10); if (String(n) === String(p.code) && n > m) m = n; }
-  return String(m + 1);
+  let m = 0, hasP = false;
+  for (const p of await list()) {
+    const c = String(p.code || '').trim(), mp = c.match(/^P(\d+)$/i);
+    if (mp) { hasP = true; m = Math.max(m, parseInt(mp[1], 10)); continue; }
+    const n = parseInt(c, 10); if (String(n) === c && n > m) m = n;
+  }
+  return hasP ? 'P' + String(m + 1).padStart(4, '0') : String(m + 1);
 }
 
 // New product in the system, shaped exactly like the app's own "new product" (code, name, cat, unit, qty, price, min, cost).

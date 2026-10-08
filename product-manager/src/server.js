@@ -66,7 +66,9 @@ app.post('/api/drafts', upload.array('images', 30), wrap(async (req, res) => {
   await reframe(m);
 
   // 3) description from the first framed image
-  try { m.description = await describe(name, await fs.readFile(path.join(dir(id), 'f0.jpg'))); }
+  m.hint = String(req.body.hint || '').trim();
+  const secNm = async sec => { try { return ((await site.sections()).find(s => s.id === sec) || {}).name || ''; } catch { return ''; } };
+  try { m.description = await describe(name, await fs.readFile(path.join(dir(id), 'f0.jpg')), { hint: m.hint, sec: await secNm(m.sec) }); }
   catch (e) { m.warnings.push('الوصف: ' + e.message); }
 
   await writeMeta(id, m);
@@ -123,7 +125,8 @@ app.post('/api/drafts/:id/create-in-system', wrap(async (req, res) => {
 app.post('/api/drafts/:id/describe', wrap(async (req, res) => {
   const m = await readMeta(req.params.id);
   const first = [...Array(m.count).keys()].find(i => !m.removed.includes(i)) ?? 0;
-  m.description = await describe(m.name, await fs.readFile(path.join(dir(m.id), `f${first}.jpg`)));
+  const sec = await (async () => { try { return ((await site.sections()).find(s => s.id === m.sec) || {}).name || ''; } catch { return ''; } })();
+  m.description = await describe(m.name, await fs.readFile(path.join(dir(m.id), `f${first}.jpg`)), { hint: m.hint || '', sec });
   await writeMeta(m.id, m);
   res.json(view(m));
 }));
@@ -160,6 +163,43 @@ app.get('/api/match', wrap(async (req, res) => {
 }));
 
 // --- frame settings (code position / size / colour) -------------------------
+// «ابعتلي على الواتساب»: بنحط المنتج (صور بالفريم + نص جاهز للكتالوج) في فولدر outbox، وجسر الواتساب بيبعته
+const OUTBOX = process.env.WA_OUTBOX || 'C:\\mekanizm-whatsapp\\outbox';
+const SEND_TO = () => String(process.env.WA_SEND_TO || '201119199659').replace(/\D/g, '');
+app.post('/api/drafts/:id/send-wa', wrap(async (req, res) => {
+  const m = await readMeta(req.params.id);
+  const ids = [...Array(m.count).keys()].filter(i => !m.removed.includes(i)).slice(0, 10);
+  if (!ids.length) return res.status(400).json({ error: 'مفيش صور' });
+  const job = path.join(OUTBOX, m.id + '-' + Date.now());
+  await fs.mkdir(job, { recursive: true });
+  const images = [];
+  for (const [k, i] of ids.entries()) { const f = `${k + 1}.jpg`; await fs.copyFile(path.join(dir(m.id), `f${i}.jpg`), path.join(job, f)); images.push(f); }
+  const url = m.site && m.site.url && m.site.url !== '#' ? m.site.url : '';
+  const text = [m.name, m.code ? 'الكود: ' + m.code : '', '', m.description || '', url ? '\n' + url : ''].join('\n').replace(/\n{3,}/g, '\n\n').trim();
+  await fs.writeFile(path.join(job, 'job.tmp'), JSON.stringify({ to: SEND_TO(), text, images }));
+  await fs.rename(path.join(job, 'job.tmp'), path.join(job, 'job.json'));   // الجسر مبيشوفوش غير لما يكمل
+  let bridge = false;
+  try { const st = await fs.stat(path.join(OUTBOX, '..', 'outbox.alive')); bridge = Date.now() - st.mtimeMs < 60e3; } catch {}
+  if (!bridge) return res.json({ ok: false, images: images.length, bridge, msg: 'جسر الواتساب مش شغال — هيتبعت أول ما يشتغل' });
+  // بنستنى نتيجة الجسر الحقيقية (الفولدر بيتمسح لما يتبعت، أو job.failed لو فشل)
+  const exists = f => fs.access(f).then(() => true, () => false);
+  for (let t = 0; t < 60; t++) {
+    await new Promise(r => setTimeout(r, 1000));
+    if (!(await exists(job))) return res.json({ ok: true, images: images.length, bridge });
+    if (await exists(path.join(job, 'job.failed'))) {
+      await fs.rm(job, { recursive: true, force: true });
+      return res.status(502).json({ error: 'الواتساب رفض الإرسال (مكتبة الواتساب محتاجة تحديث) — استخدم «نسخ نص المنتج» و«تحميل الصور» لحد ما تتصلح' });
+    }
+  }
+  res.json({ ok: false, images: images.length, bridge, msg: 'لسه بيتبعت... لو موصلش خلال دقيقة قولي' });
+}));
+
+// صور الآيفون (HEIC): المتصفح مش بيفتحها — بنحوّلها JPG هنا ونرجّعها
+app.post('/api/heic', express.raw({ type: () => true, limit: '30mb' }), wrap(async (req, res) => {
+  const out = await require('heic-convert')({ buffer: req.body, format: 'JPEG', quality: 0.92 });
+  res.type('jpeg').send(Buffer.from(out));
+}));
+
 const FRAME_DIR = path.join(__dirname, '..', 'assets');
 app.get('/api/frame', wrap(async (req, res) => res.json(JSON.parse(await fs.readFile(path.join(FRAME_DIR, 'frame.json'), 'utf8')))));
 app.get('/api/frame.png', (req, res) => res.sendFile(path.join(FRAME_DIR, 'frame.png')));
@@ -174,20 +214,21 @@ app.put('/api/frame', wrap(async (req, res) => {
 
 // --- connection status -------------------------------------------------------
 app.get('/api/status', wrap(async (req, res) => {
-  const out = { claude: !!process.env.ANTHROPIC_API_KEY, wa: wa.configured(), supabase: false, system: false };
+  const out = { claude: true, ai: require('./describe').aiOn(), wa: wa.configured(), supabase: false, system: false };
   try { await site.sections(); out.supabase = true; } catch (e) { out.error = e.message; }
   try { await erp.findByName('x'); out.system = true; } catch (e) { out.error = out.error || e.message; }
   res.json(out);
 }));
 
 app.get('/api/sections', wrap(async (req, res) => res.json(await site.sections())));
+app.post('/api/sections', wrap(async (req, res) => res.json(await site.addSection((req.body || {}).name))));
 
 app.delete('/api/drafts/:id', wrap(async (req, res) => {
   await fs.rm(dir(req.params.id), { recursive: true, force: true });
   res.json({ ok: true });
 }));
 
-app.use(express.static(path.join(__dirname, '..', 'public')));
+app.use(express.static(path.join(__dirname, '..', 'public'), { setHeaders: res => res.set('Cache-Control', 'no-cache') }));
 const port = process.env.PORT || 3000;
 if (require.main === module) app.listen(port, () => console.log('http://localhost:' + port));
 module.exports = app;
