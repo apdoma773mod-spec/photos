@@ -7,7 +7,7 @@ const crypto = require('crypto');
 const erp = require('./erp');
 const { frameImage } = require('./frame');
 const { describe } = require('./describe');
-const shopify = require('./shopify');
+const site = require('./site');
 
 const DIR = path.join(__dirname, '..', 'data', 'drafts');
 const app = express();
@@ -46,7 +46,7 @@ app.post('/api/drafts', upload.array('images', 30), wrap(async (req, res) => {
   const id = crypto.randomBytes(6).toString('hex');
   await fs.mkdir(dir(id), { recursive: true });
 
-  const m = { id, name, code: String(req.body.code || '').trim(), erpName: '', candidates: [], description: '',
+  const m = { id, name, code: String(req.body.code || '').trim(), sec: String(req.body.sec || ''), erpName: '', candidates: [], description: '',
     count: req.files.length, removed: [], status: 'draft', created: new Date().toISOString(), warnings: [] };
 
   // 1) ERP match (skipped if the user typed the code)
@@ -91,6 +91,7 @@ app.patch('/api/drafts/:id', wrap(async (req, res) => {
   let re = false;
   if (typeof b.name === 'string' && b.name.trim()) m.name = b.name.trim();
   if (typeof b.description === 'string') m.description = b.description;
+  if (typeof b.sec === 'string') m.sec = b.sec;
   if (typeof b.code === 'string' && b.code.trim() !== m.code) {
     m.code = b.code.trim(); re = true;
     const hit = m.candidates.find(c => c.code === m.code);
@@ -110,7 +111,7 @@ app.post('/api/drafts/:id/describe', wrap(async (req, res) => {
   res.json(view(m));
 }));
 
-// --- publish: Shopify first, then sync the ERP name -------------------------
+// --- publish: site first, then sync the ERP name -------------------------
 app.post('/api/drafts/:id/publish', wrap(async (req, res) => {
   const m = await readMeta(req.params.id);
   if (m.status === 'published') return res.status(409).json({ error: 'اترفع قبل كده' });
@@ -119,15 +120,17 @@ app.post('/api/drafts/:id/publish', wrap(async (req, res) => {
   for (let i = 0; i < m.count; i++) if (!m.removed.includes(i)) imgs.push(await fs.readFile(path.join(dir(m.id), `f${i}.jpg`)));
   if (!imgs.length) return res.status(400).json({ error: 'مفيش صور' });
 
-  const r = await shopify.createProduct({ title: m.name, description: m.description, code: m.code, images: imgs });
-  m.status = 'published'; m.shopify = r; m.warnings = [];
+  const r = await site.publish({ name: m.name, description: m.description, sec: m.sec, code: m.code, images: imgs });
+  m.status = 'published'; m.site = r; m.warnings = [];
   if (req.body?.syncName !== false && mismatch(m)) {
     try { await erp.rename(m.code, m.name); m.erpName = m.name; }
-    catch (e) { m.warnings.push('اترفع على Shopify بس تغيير الاسم في السيستم فشل: ' + e.message); }
+    catch (e) { m.warnings.push('اترفع على الموقع بس تغيير الاسم في السيستم فشل: ' + e.message); }
   }
   await writeMeta(m.id, m);
   res.json(view(m));
 }));
+
+app.get('/api/sections', wrap(async (req, res) => res.json(await site.sections())));
 
 app.delete('/api/drafts/:id', wrap(async (req, res) => {
   await fs.rm(dir(req.params.id), { recursive: true, force: true });

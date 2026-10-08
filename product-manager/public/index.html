@@ -25,6 +25,7 @@ button.g{background:#e7ebf6;color:var(--ac)}button.r{background:#fee2e2;color:#9
   <b>منتج جديد</b>
   <input id="name" placeholder="اسم المنتج (زي ما هيظهر في الموقع)">
   <input id="code" placeholder="الكود (اختياري — لو سبته فاضي بيتدور عليه في السيستم)">
+  <select id="sec"></select>
   <input id="files" type="file" accept="image/*" multiple>
   <button id="go" onclick="create()">ارفع وجهّز</button>
   <div class="mu" id="st"></div>
@@ -41,25 +42,28 @@ async function api(u,o={}){o.headers=Object.assign({'x-pass':pass()},o.headers||
   if(r.status==401){$('login').hidden=false;throw new Error(j.error||'غير مصرح')}
   if(!r.ok)throw new Error(j.error||r.status);return j}
 const js=(m,b)=>({method:m,headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});
-async function create(){const f=[...$('files').files];if(!$('name').value.trim()||!f.length)return alert('اكتب الاسم واختار صور');
+async function create(){const f=[...$('files').files];if(!$('name').value.trim()||!f.length||!$('sec').value)return alert('اكتب الاسم واختار القسم والصور');
   $('go').disabled=true;$('st').textContent='بجهّز الفريم والكود والوصف... (ممكن ياخد دقيقة)';
-  const fd=new FormData();fd.append('name',$('name').value);fd.append('code',$('code').value);f.forEach(x=>fd.append('images',x));
+  const fd=new FormData();fd.append('name',$('name').value);fd.append('code',$('code').value);fd.append('sec',$('sec').value);f.forEach(x=>fd.append('images',x));
   try{await api('/api/drafts',{method:'POST',body:fd});$('name').value=$('code').value='';$('files').value='';$('st').textContent='';await load()}
   catch(e){$('st').textContent='';alert(e.message)}$('go').disabled=false}
-async function load(){let l;try{l=await api('/api/drafts')}catch(e){return}$('login').hidden=true;
+let SEC=[];
+async function load(){let l;try{l=await api('/api/drafts');SEC=await api('/api/sections')}catch(e){if(e.message!='غير مصرح'&&e.message!='كلمة السر غلط')alert(e.message);return}$('login').hidden=true;
+  $('sec').innerHTML='<option value="">اختار القسم</option>'+SEC.map(x=>`<option value="${esc(x.id)}">${esc(x.name)}</option>`).join('');
   $('list').innerHTML=l.map(d=>{
     const live=d.status=='published';
     return `<div class=card id="d${d.id}"><div class=imgs>${[...Array(d.count).keys()].map(i=>`<div class="${d.removed.includes(i)?'off':''}"><img src="/api/drafts/${d.id}/img/${i}?pass=${encodeURIComponent(pass())}">${live?'':`<button class="x r" onclick="tgl('${d.id}',${i})">${d.removed.includes(i)?'↩':'✕'}</button>`}</div>`).join('')}</div>
     ${d.warnings.map(w=>`<div class=w>${esc(w)}</div>`).join('')}
     ${d.mismatch?`<div class=w>الاسم في السيستم مختلف: <b>${esc(d.erpName)}</b> — هيتغير لاسم الموقع عند الرفع.</div>`:''}
-    ${live?`<div class="w ok">اترفع على Shopify (مسودة) ✅ <a href="${d.shopify.url}" target=_blank>افتحه</a></div>`:''}
+    ${live?`<div class="w ok">اترفع على الموقع ✅ <a href="${d.site.url}" target=_blank>افتحه</a></div>`:''}
     <input id="n${d.id}" value="${esc(d.name)}" ${live?'disabled':''}>
     <div class=row><input id="c${d.id}" value="${esc(d.code)}" placeholder="الكود" ${live?'disabled':''}>
     ${d.candidates.length&&!live?`<select onchange="pick('${d.id}',this.value)"><option value="">مقترحات من السيستم</option>${d.candidates.map(c=>`<option value="${esc(c.code)}">${esc(c.code)} — ${esc(c.name)}</option>`).join('')}</select>`:''}</div>
+    <select id="e${d.id}" ${live?'disabled':''}>${SEC.map(x=>`<option value="${esc(x.id)}" ${x.id==d.sec?'selected':''}>${esc(x.name)}</option>`).join('')}</select>
     <textarea id="t${d.id}" ${live?'disabled':''}>${esc(d.description)}</textarea>
     ${live?'':`<button onclick="save('${d.id}')">حفظ</button><button class=g onclick="regen('${d.id}')">🔄 وصف جديد</button><button onclick="pub('${d.id}')">🚀 ارفع على الموقع</button>`}
     <button class="r" onclick="del('${d.id}')">🗑</button></div>`}).join('')}
-const body=id=>({name:$('n'+id).value,code:$('c'+id).value,description:$('t'+id).value});
+const body=id=>({name:$('n'+id).value,code:$('c'+id).value,description:$('t'+id).value,sec:$('e'+id).value});
 async function save(id){try{await api('/api/drafts/'+id,js('PATCH',body(id)));load()}catch(e){alert(e.message)}}
 async function pick(id,c){if(!c)return;$('c'+id).value=c;save(id)}
 async function tgl(id,i){const d=(await api('/api/drafts')).find(x=>x.id==id);const r=d.removed.includes(i)?d.removed.filter(x=>x!=i):[...d.removed,i];await api('/api/drafts/'+id,js('PATCH',{removed:r}));load()}

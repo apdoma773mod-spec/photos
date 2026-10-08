@@ -1,6 +1,7 @@
-// ERP adapter: finds the product code by name and pushes name updates back.
-// Configured purely through env so any REST system can be plugged in.
-const path_ = (o, p) => (p ? p.split('.').reduce((a, k) => (a == null ? a : a[k]), o) : o);
+// "System" adapter: the Mekanezm management system on Supabase.
+// New system  -> table mk_products (code, name)       (when rpc mk_tables_on() = true)
+// Old system  -> app_state.data.products (JSON blob)  (versioned row owned by the user)
+const { json, userId } = require('./supabase');
 
 const norm = s => String(s || '')
   .replace(/[ً-ْـ]/g, '').replace(/[أإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه')
@@ -18,49 +19,59 @@ function lev(a, b) {
   return p[n];
 }
 const sim = (a, b) => { const L = Math.max(a.length, b.length); return L ? 1 - lev(a, b) / L : 0; };
-
-// token-order independent similarity
-function score(a, b) {
+function score(a, b) {                      // order-independent token similarity
   const x = norm(a), y = norm(b);
   if (!x || !y) return 0;
   const sorted = s => s.split(' ').sort().join(' ');
-  return Math.max(sim(x, y), sim(sorted(x), sorted(y)));
+  let best = Math.max(sim(x, y), sim(sorted(x), sorted(y)));
+  const tx = x.split(' '), ty = y.split(' '), [sm, lg] = tx.length <= ty.length ? [tx, ty] : [ty, tx];
+  if (sm.length >= 2 && sm.every(t => lg.includes(t))) best = Math.max(best, 0.88);   // one name = the other + extra words
+  return best;
 }
 
-function headers() {
-  const h = { 'Content-Type': 'application/json' };
-  const raw = process.env.ERP_AUTH_HEADER;
-  if (raw && raw.includes(':')) { const i = raw.indexOf(':'); h[raw.slice(0, i).trim()] = raw.slice(i + 1).trim(); }
-  return h;
+let mode = null, cache = null, cacheAt = 0;
+async function useTables() {
+  if (mode === null) mode = (await json('/rest/v1/rpc/mk_tables_on', { method: 'POST', body: '{}' })) === true ? 'tables' : 'blob';
+  return mode === 'tables';
+}
+async function list() {
+  if (cache && Date.now() - cacheAt < 60e3) return cache;
+  if (await useTables()) {
+    cache = (await json('/rest/v1/mk_products?select=code,name&limit=10000')).map(x => ({ code: String(x.code || ''), name: String(x.name || '') }));
+  } else {
+    const r = await json('/rest/v1/app_state?select=data&owner=eq.' + await userId());
+    cache = ((r[0] && r[0].data && r[0].data.products) || []).map(x => ({ code: String(x.code || ''), name: String(x.name || '') }));
+  }
+  cacheAt = Date.now();
+  return cache;
 }
 
-async function search(q) {
-  const url = process.env.ERP_SEARCH_URL;
-  if (!url) throw new Error('ERP_SEARCH_URL مش متظبط');
-  const r = await fetch(url.replace('{q}', encodeURIComponent(q)), { headers: headers() });
-  if (!r.ok) throw new Error('ERP search ' + r.status);
-  const list = path_(await r.json(), process.env.ERP_LIST_PATH || '') || [];
-  const cf = process.env.ERP_CODE_FIELD || 'code', nf = process.env.ERP_NAME_FIELD || 'name';
-  return list.map(x => ({ code: String(path_(x, cf)), name: String(path_(x, nf)) }));
-}
-
-// Returns { match, candidates }. `match` only when confident, else the user picks from candidates.
+// { match, candidates } — `match` only when confident, otherwise the user picks from candidates.
 async function findByName(name) {
-  const all = await search(name);
-  const ranked = all.map(c => ({ ...c, score: score(name, c.name) })).sort((a, b) => b.score - a.score).slice(0, 5);
+  const ranked = (await list()).filter(p => p.code).map(p => ({ ...p, score: score(name, p.name) }))
+    .sort((a, b) => b.score - a.score).slice(0, 5);
   const [top, second] = ranked;
   const sure = top && top.score >= 0.85 && (!second || top.score - second.score >= 0.08);
   return { match: sure ? top : null, candidates: ranked };
 }
 
 async function rename(code, newName) {
-  const url = process.env.ERP_UPDATE_URL;
-  if (!url) throw new Error('ERP_UPDATE_URL مش متظبط');
-  const nf = process.env.ERP_NAME_FIELD || 'name';
-  const r = await fetch(url.replace('{code}', encodeURIComponent(code)), {
-    method: process.env.ERP_UPDATE_METHOD || 'PUT', headers: headers(), body: JSON.stringify({ [nf]: newName })
-  });
-  if (!r.ok) throw new Error('ERP rename ' + r.status + ' ' + (await r.text()).slice(0, 200));
+  cache = null;
+  if (await useTables()) {
+    const rows = await json('/rest/v1/mk_products?code=eq.' + encodeURIComponent(code), { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ name: newName, updated_at: new Date().toISOString() }) });
+    if (!rows.length) throw new Error('الكود مش موجود في السيستم: ' + code);
+    return;
+  }
+  const owner = await userId();
+  for (let i = 0; i < 3; i++) {             // optimistic-lock on app_state.version, same as the app does
+    const [row] = await json(`/rest/v1/app_state?select=data,version&owner=eq.${owner}`);
+    const p = row && row.data.products.find(x => String(x.code) === String(code));
+    if (!p) throw new Error('الكود مش موجود في السيستم: ' + code);
+    p.name = newName;
+    const ok = await json(`/rest/v1/app_state?owner=eq.${owner}&version=eq.${row.version}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ data: row.data, version: row.version + 1, updated_at: new Date().toISOString() }) });
+    if (ok.length) return;
+  }
+  throw new Error('السيستم اتعدل من مكان تاني، جرّب تاني');
 }
 
 module.exports = { findByName, rename, norm, score };
