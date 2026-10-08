@@ -1,0 +1,70 @@
+<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>إدارة المنتجات</title>
+<style>
+:root{--bg:#f3f5fb;--card:#fff;--ac:#4f6bff;--tx:#1b2240;--mu:#7a85a3;--ok:#059669;--wr:#b45309}
+*{box-sizing:border-box}body{margin:0;font-family:Tahoma,sans-serif;background:var(--bg);color:var(--tx)}
+header{padding:18px 20px;font-size:21px;font-weight:800;color:#fff;background:linear-gradient(135deg,#4f8cff,#8b5cf6)}
+main{max-width:760px;margin:0 auto;padding:14px}
+.card{background:var(--card);border-radius:18px;padding:14px;margin:12px 0;box-shadow:0 4px 16px #1b224012}
+input,textarea,select{width:100%;padding:12px;font:inherit;border:1px solid #dde3f1;border-radius:12px;margin:5px 0}
+textarea{min-height:110px}
+button{background:linear-gradient(135deg,#4f8cff,#7c5cff);color:#fff;border:0;border-radius:12px;padding:11px 16px;font:inherit;font-weight:600;margin:3px}
+button.g{background:#e7ebf6;color:var(--ac)}button.r{background:#fee2e2;color:#991b1b}button:disabled{opacity:.4}
+.imgs{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:6px;margin:8px 0}
+.imgs div{position:relative;aspect-ratio:1}.imgs img{width:100%;height:100%;object-fit:cover;border-radius:10px}
+.imgs .x{position:absolute;top:2px;left:2px;margin:0;padding:2px 8px;border-radius:50%}
+.imgs .off img{opacity:.25}
+.w{background:#fef3c7;color:var(--wr);padding:8px 10px;border-radius:10px;margin:6px 0;font-size:14px}
+.ok{background:#d1fae5;color:var(--ok)}
+.mu{color:var(--mu);font-size:13px}
+.row{display:flex;gap:8px}.row>*{flex:1}
+</style></head><body>
+<header>📦 إدارة المنتجات</header>
+<main>
+<div class="card" id="login" hidden><input id="pw" type="password" placeholder="كلمة السر"><button onclick="setPw()">دخول</button></div>
+<div class="card" id="new">
+  <b>منتج جديد</b>
+  <input id="name" placeholder="اسم المنتج (زي ما هيظهر في الموقع)">
+  <input id="code" placeholder="الكود (اختياري — لو سبته فاضي بيتدور عليه في السيستم)">
+  <input id="files" type="file" accept="image/*" multiple>
+  <button id="go" onclick="create()">ارفع وجهّز</button>
+  <div class="mu" id="st"></div>
+</div>
+<div id="list"></div>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const pass=()=>localStorage.getItem('pass')||'';
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function setPw(){localStorage.setItem('pass',$('pw').value);load()}
+async function api(u,o={}){o.headers=Object.assign({'x-pass':pass()},o.headers||{});
+  const r=await fetch(u,o);const j=await r.json().catch(()=>({}));
+  if(r.status==401){$('login').hidden=false;throw new Error(j.error||'غير مصرح')}
+  if(!r.ok)throw new Error(j.error||r.status);return j}
+const js=(m,b)=>({method:m,headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});
+async function create(){const f=[...$('files').files];if(!$('name').value.trim()||!f.length)return alert('اكتب الاسم واختار صور');
+  $('go').disabled=true;$('st').textContent='بجهّز الفريم والكود والوصف... (ممكن ياخد دقيقة)';
+  const fd=new FormData();fd.append('name',$('name').value);fd.append('code',$('code').value);f.forEach(x=>fd.append('images',x));
+  try{await api('/api/drafts',{method:'POST',body:fd});$('name').value=$('code').value='';$('files').value='';$('st').textContent='';await load()}
+  catch(e){$('st').textContent='';alert(e.message)}$('go').disabled=false}
+async function load(){let l;try{l=await api('/api/drafts')}catch(e){return}$('login').hidden=true;
+  $('list').innerHTML=l.map(d=>{
+    const live=d.status=='published';
+    return `<div class=card id="d${d.id}"><div class=imgs>${[...Array(d.count).keys()].map(i=>`<div class="${d.removed.includes(i)?'off':''}"><img src="/api/drafts/${d.id}/img/${i}?pass=${encodeURIComponent(pass())}">${live?'':`<button class="x r" onclick="tgl('${d.id}',${i})">${d.removed.includes(i)?'↩':'✕'}</button>`}</div>`).join('')}</div>
+    ${d.warnings.map(w=>`<div class=w>${esc(w)}</div>`).join('')}
+    ${d.mismatch?`<div class=w>الاسم في السيستم مختلف: <b>${esc(d.erpName)}</b> — هيتغير لاسم الموقع عند الرفع.</div>`:''}
+    ${live?`<div class="w ok">اترفع على Shopify (مسودة) ✅ <a href="${d.shopify.url}" target=_blank>افتحه</a></div>`:''}
+    <input id="n${d.id}" value="${esc(d.name)}" ${live?'disabled':''}>
+    <div class=row><input id="c${d.id}" value="${esc(d.code)}" placeholder="الكود" ${live?'disabled':''}>
+    ${d.candidates.length&&!live?`<select onchange="pick('${d.id}',this.value)"><option value="">مقترحات من السيستم</option>${d.candidates.map(c=>`<option value="${esc(c.code)}">${esc(c.code)} — ${esc(c.name)}</option>`).join('')}</select>`:''}</div>
+    <textarea id="t${d.id}" ${live?'disabled':''}>${esc(d.description)}</textarea>
+    ${live?'':`<button onclick="save('${d.id}')">حفظ</button><button class=g onclick="regen('${d.id}')">🔄 وصف جديد</button><button onclick="pub('${d.id}')">🚀 ارفع على الموقع</button>`}
+    <button class="r" onclick="del('${d.id}')">🗑</button></div>`}).join('')}
+const body=id=>({name:$('n'+id).value,code:$('c'+id).value,description:$('t'+id).value});
+async function save(id){try{await api('/api/drafts/'+id,js('PATCH',body(id)));load()}catch(e){alert(e.message)}}
+async function pick(id,c){if(!c)return;$('c'+id).value=c;save(id)}
+async function tgl(id,i){const d=(await api('/api/drafts')).find(x=>x.id==id);const r=d.removed.includes(i)?d.removed.filter(x=>x!=i):[...d.removed,i];await api('/api/drafts/'+id,js('PATCH',{removed:r}));load()}
+async function regen(id){try{await api('/api/drafts/'+id+'/describe',{method:'POST'});load()}catch(e){alert(e.message)}}
+async function pub(id){try{await api('/api/drafts/'+id,js('PATCH',body(id)));await api('/api/drafts/'+id+'/publish',js('POST',{}));load()}catch(e){alert(e.message)}}
+async function del(id){if(confirm('تمسح المسودة؟')){await api('/api/drafts/'+id,{method:'DELETE'});load()}}
+load();
+</script></body></html>

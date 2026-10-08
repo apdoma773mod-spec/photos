@@ -1,0 +1,14 @@
+{
+  "name": "product-manager",
+  "version": "1.0.0",
+  "private": true,
+  "type": "commonjs",
+  "scripts": { "start": "node src/server.js" },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.132.0",
+    "dotenv": "^18.0.6",
+    "express": "^5.2.1",
+    "multer": "^2.4.0",
+    "sharp": "^0.35.5"
+  }
+}
