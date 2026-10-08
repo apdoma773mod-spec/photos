@@ -121,13 +121,40 @@ app.post('/api/drafts/:id/publish', wrap(async (req, res) => {
   if (!imgs.length) return res.status(400).json({ error: 'مفيش صور' });
 
   const r = await site.publish({ name: m.name, description: m.description, sec: m.sec, code: m.code, images: imgs });
-  m.status = 'published'; m.site = r; m.warnings = [];
+  m.status = 'published'; m.published = new Date().toISOString(); m.site = r; m.warnings = [];
   if (req.body?.syncName !== false && mismatch(m)) {
-    try { await erp.rename(m.code, m.name); m.erpName = m.name; }
+    try { await erp.rename(m.code, m.name); m.erpName = m.name; m.synced = true; }
     catch (e) { m.warnings.push('اترفع على الموقع بس تغيير الاسم في السيستم فشل: ' + e.message); }
   }
   await writeMeta(m.id, m);
   res.json(view(m));
+}));
+
+// --- instant code match while typing ---------------------------------------
+app.get('/api/match', wrap(async (req, res) => {
+  const name = String(req.query.name || '').trim();
+  res.json(name ? await erp.findByName(name) : { match: null, candidates: [] });
+}));
+
+// --- frame settings (code position / size / colour) -------------------------
+const FRAME_DIR = path.join(__dirname, '..', 'assets');
+app.get('/api/frame', wrap(async (req, res) => res.json(JSON.parse(await fs.readFile(path.join(FRAME_DIR, 'frame.json'), 'utf8')))));
+app.get('/api/frame.png', (req, res) => res.sendFile(path.join(FRAME_DIR, 'frame.png')));
+app.put('/api/frame', wrap(async (req, res) => {
+  const f = path.join(FRAME_DIR, 'frame.json'), cfg = JSON.parse(await fs.readFile(f, 'utf8')), c = req.body || {};
+  const num = (v, lo, hi) => Number.isFinite(+v) && +v >= lo && +v <= hi;
+  if (!num(c.x, 0, 4000) || !num(c.y, 0, 4000) || !num(c.size, 10, 120) || !/^#[0-9a-fA-F]{6}$/.test(c.color || '')) return res.status(400).json({ error: 'قيم غير صحيحة' });
+  cfg.code = { ...cfg.code, x: +c.x, y: +c.y, size: +c.size, color: c.color };
+  await fs.writeFile(f, JSON.stringify(cfg, null, 2));
+  res.json(cfg);
+}));
+
+// --- connection status -------------------------------------------------------
+app.get('/api/status', wrap(async (req, res) => {
+  const out = { claude: !!process.env.ANTHROPIC_API_KEY, supabase: false, system: false };
+  try { await site.sections(); out.supabase = true; } catch (e) { out.error = e.message; }
+  try { await erp.findByName('x'); out.system = true; } catch (e) { out.error = out.error || e.message; }
+  res.json(out);
 }));
 
 app.get('/api/sections', wrap(async (req, res) => res.json(await site.sections())));
