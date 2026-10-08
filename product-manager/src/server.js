@@ -107,6 +107,19 @@ app.patch('/api/drafts/:id', wrap(async (req, res) => {
   res.json(view(m));
 }));
 
+// product is not in the system yet: create it there (next numeric code) and re-frame the photos with that code
+app.post('/api/drafts/:id/create-in-system', wrap(async (req, res) => {
+  const m = await readMeta(req.params.id), b = req.body || {};
+  if (m.status === 'published') return res.status(409).json({ error: 'اترفع خلاص' });
+  if (m.code) return res.status(400).json({ error: 'المنتج ده عنده كود: ' + m.code });
+  const code = await erp.nextCode(), cat = ((await site.sections()).find(s => s.id === m.sec) || {}).name || '';
+  await erp.create({ code, name: m.name, cat, price: b.price, qty: b.qty, unit: b.unit, cost: b.cost });
+  m.code = code; m.erpName = m.name; m.price = +b.price || 0;
+  m.warnings = m.warnings.filter(w => !w.includes('مالقيتش كود'));
+  await reframe(m); await writeMeta(m.id, m);
+  res.json(view(m));
+}));
+
 app.post('/api/drafts/:id/describe', wrap(async (req, res) => {
   const m = await readMeta(req.params.id);
   const first = [...Array(m.count).keys()].find(i => !m.removed.includes(i)) ?? 0;

@@ -74,6 +74,33 @@ async function rename(code, newName) {
   throw new Error('السيستم اتعدل من مكان تاني، جرّب تاني');
 }
 
+// system codes are plain numbers (1,2,3...): next = highest numeric code + 1, same rule as the app's nextCode()
+async function nextCode() {
+  let m = 0;
+  for (const p of await list()) { const n = parseInt(p.code, 10); if (String(n) === String(p.code) && n > m) m = n; }
+  return String(m + 1);
+}
+
+// New product in the system, shaped exactly like the app's own "new product" (code, name, cat, unit, qty, price, min, cost).
+async function create({ code, name, cat, price, qty, unit, cost }) {
+  if ((await list()).some(p => p.code === String(code))) throw new Error('الكود ده مستخدم في السيستم: ' + code);
+  cache = null;
+  if (await useTables()) {
+    const [row] = await json('/rest/v1/mk_products', { method: 'POST', headers: { Prefer: 'return=representation' },
+      body: JSON.stringify({ code: String(code), name, cat: cat || '', unit: unit || 'قطعة', qty: +qty || 0, price: +price || 0, min: 0, barcode: '' }) });
+    if (+cost > 0) await json('/rest/v1/mk_product_costs', { method: 'POST', body: JSON.stringify({ product_id: row.id, cost: +cost }) });
+    return;
+  }
+  const owner = await userId();
+  for (let i = 0; i < 3; i++) {
+    const [row] = await json(`/rest/v1/app_state?select=data,version&owner=eq.${owner}`);
+    row.data.products.unshift({ id: require('crypto').randomUUID(), code: String(code), barcode: '', name, cat: cat || '', unit: unit || 'قطعة', qty: +qty || 0, price: +price || 0, min: 0, cost: +cost || 0 });
+    const ok = await json(`/rest/v1/app_state?owner=eq.${owner}&version=eq.${row.version}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ data: row.data, version: row.version + 1, updated_at: new Date().toISOString() }) });
+    if (ok.length) return;
+  }
+  throw new Error('السيستم اتعدل من مكان تاني، جرّب تاني');
+}
+
 const priceOf = async code => ((await list()).find(p => p.code === String(code)) || {}).price || 0;
 
-module.exports = { findByName, rename, priceOf, norm, score };
+module.exports = { findByName, rename, create, nextCode, priceOf, norm, score };
