@@ -8,6 +8,7 @@ const erp = require('./erp');
 const { frameImage } = require('./frame');
 const { describe } = require('./describe');
 const site = require('./site');
+const wa = require('./whatsapp');
 
 const DIR = path.join(__dirname, '..', 'data', 'drafts');
 const app = express();
@@ -47,7 +48,7 @@ app.post('/api/drafts', upload.array('images', 30), wrap(async (req, res) => {
   await fs.mkdir(dir(id), { recursive: true });
 
   const m = { id, name, code: String(req.body.code || '').trim(), sec: String(req.body.sec || ''), erpName: '', candidates: [], description: '',
-    count: req.files.length, removed: [], status: 'draft', created: new Date().toISOString(), warnings: [] };
+    price: 0, wa: null, count: req.files.length, removed: [], status: 'draft', created: new Date().toISOString(), warnings: [] };
 
   // 1) ERP match (skipped if the user typed the code)
   try {
@@ -57,6 +58,7 @@ app.post('/api/drafts', upload.array('images', 30), wrap(async (req, res) => {
     const hit = r.candidates.find(c => c.code === m.code);
     if (hit) m.erpName = hit.name;
     if (!m.code) m.warnings.push('مالقيتش كود مطابق في السيستم — اختار من المقترحات أو اكتبه');
+    else m.price = (hit && hit.price) || 0;
   } catch (e) { m.warnings.push('السيستم: ' + e.message); }
 
   // 2) originals + framed
@@ -92,10 +94,12 @@ app.patch('/api/drafts/:id', wrap(async (req, res) => {
   if (typeof b.name === 'string' && b.name.trim()) m.name = b.name.trim();
   if (typeof b.description === 'string') m.description = b.description;
   if (typeof b.sec === 'string') m.sec = b.sec;
+  if (b.price !== undefined && Number.isFinite(+b.price) && +b.price >= 0) m.price = +b.price;
   if (typeof b.code === 'string' && b.code.trim() !== m.code) {
     m.code = b.code.trim(); re = true;
     const hit = m.candidates.find(c => c.code === m.code);
     m.erpName = hit ? hit.name : '';
+    if (hit && hit.price && b.price === undefined) m.price = hit.price;
   }
   if (Array.isArray(b.removed)) m.removed = [...new Set(b.removed.filter(Number.isInteger))];
   if (re) await reframe(m);
@@ -126,6 +130,12 @@ app.post('/api/drafts/:id/publish', wrap(async (req, res) => {
     try { await erp.rename(m.code, m.name); m.erpName = m.name; m.synced = true; }
     catch (e) { m.warnings.push('اترفع على الموقع بس تغيير الاسم في السيستم فشل: ' + e.message); }
   }
+  if (req.body?.catalog !== false) {          // WhatsApp catalog (never blocks the site publish)
+    try {
+      const w = await wa.upsert({ code: m.code, name: m.name, description: m.description, price: m.price, link: r.url, images: r.imgs });
+      if (w.skipped) m.warnings.push('الواتساب: ' + w.skipped); else m.wa = { ok: true, at: new Date().toISOString() };
+    } catch (e) { m.warnings.push('الواتساب: ' + e.message); }
+  }
   await writeMeta(m.id, m);
   res.json(view(m));
 }));
@@ -151,7 +161,7 @@ app.put('/api/frame', wrap(async (req, res) => {
 
 // --- connection status -------------------------------------------------------
 app.get('/api/status', wrap(async (req, res) => {
-  const out = { claude: !!process.env.ANTHROPIC_API_KEY, supabase: false, system: false };
+  const out = { claude: !!process.env.ANTHROPIC_API_KEY, wa: wa.configured(), supabase: false, system: false };
   try { await site.sections(); out.supabase = true; } catch (e) { out.error = e.message; }
   try { await erp.findByName('x'); out.system = true; } catch (e) { out.error = out.error || e.message; }
   res.json(out);

@@ -23,7 +23,7 @@ async function publish({ name, description, sec, code, images }) {
     const row = await getRow();
     row.data.products.push(product);
     const ok = await json(`/rest/v1/site_content?id=eq.main&version=eq.${row.version}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ data: row.data, version: row.version + 1, updated_at: new Date().toISOString() }) });
-    if (ok.length) return { id: product.id, url: (process.env.SHOP_URL || 'https://apdoma773mod-spec.github.io/mekanezm/shop.html') + '#p=' + product.id };
+    if (ok.length) return { id: product.id, imgs, url: (process.env.SHOP_URL || 'https://apdoma773mod-spec.github.io/mekanezm/shop.html') + '#p=' + product.id };
   }
   throw new Error('الموقع اتعدل من مكان تاني، جرّب تاني');
 }

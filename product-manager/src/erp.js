@@ -37,10 +37,10 @@ async function useTables() {
 async function list() {
   if (cache && Date.now() - cacheAt < 60e3) return cache;
   if (await useTables()) {
-    cache = (await json('/rest/v1/mk_products?select=code,name&limit=10000')).map(x => ({ code: String(x.code || ''), name: String(x.name || '') }));
+    cache = (await json('/rest/v1/mk_products?select=code,name,price&limit=10000')).map(x => ({ code: String(x.code || ''), name: String(x.name || ''), price: +x.price || 0 }));
   } else {
     const r = await json('/rest/v1/app_state?select=data&owner=eq.' + await userId());
-    cache = ((r[0] && r[0].data && r[0].data.products) || []).map(x => ({ code: String(x.code || ''), name: String(x.name || '') }));
+    cache = ((r[0] && r[0].data && r[0].data.products) || []).map(x => ({ code: String(x.code || ''), name: String(x.name || ''), price: +x.price || 0 }));
   }
   cacheAt = Date.now();
   return cache;
@@ -74,4 +74,6 @@ async function rename(code, newName) {
   throw new Error('السيستم اتعدل من مكان تاني، جرّب تاني');
 }
 
-module.exports = { findByName, rename, norm, score };
+const priceOf = async code => ((await list()).find(p => p.code === String(code)) || {}).price || 0;
+
+module.exports = { findByName, rename, priceOf, norm, score };
