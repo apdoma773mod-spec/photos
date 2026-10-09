@@ -133,6 +133,7 @@ th{color:var(--mute);font-size:12.5px;font-weight:700;background:var(--soft)}
 /* ================= helpers ================= */
 const $=id=>document.getElementById(id),esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const ICON={
+ film:'<rect x="3" y="5" width="18" height="14" rx="3"/><path d="M10 9l5 3-5 3z"/>',copy:'<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 00-1-1H5a1 1 0 00-1 1v10a1 1 0 001 1h3"/>',dl:'<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>',
  home:'<path d="M3 11l9-8 9 8M5 10v10h14V10"/>',plus:'<rect x="3" y="3" width="18" height="18" rx="4"/><path d="M12 8v8M8 12h8"/>',layers:'<path d="M12 3l9 5-9 5-9-5 9-5zM3 13l9 5 9-5M3 17.5l9 5 9-5"/>',
  check:'<rect x="3" y="3" width="18" height="18" rx="4"/><path d="M8 12.5l3 3 5-6"/>',clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',sliders:'<path d="M4 6h10M18 6h2M4 12h2M10 12h10M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="8" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>',
  up:'<path d="M12 16V4M7 9l5-5 5 5M4 20h16"/>',tag:'<path d="M3 12V4h8l10 10-8 8L3 12z"/><circle cx="7.5" cy="8.5" r="1.3"/>',warn:'<path d="M12 3l10 18H2L12 3zM12 10v5M12 18h0"/>',rocket:'<path d="M5 15c-1 3-1 5-1 5s2 0 5-1M14 4c4 0 6 2 6 6-2 4-5 6-9 7l-4-4c1-4 3-7 7-9zM15 9h0"/>',
@@ -164,19 +165,19 @@ const secName=id=>(S.secs.find(s=>s.id===id)||{}).name||'';
 
 /* ================= framing (client-side preview, same rules as src/frame.js) ================= */
 function drawFramed(im,code,cfg){cfg=cfg||S.cfg;const f=S.frame,W=f.naturalWidth,H=f.naturalHeight,c=document.createElement('canvas');c.width=W;c.height=H;const x=c.getContext('2d');
- x.fillStyle='#fff';x.fillRect(0,0,W,H);const w=cfg.window,k=Math.max(w.w/im.width,w.h/im.height),sw=w.w/k,sh=w.h/k;
- x.drawImage(im,(im.width-sw)/2,(im.height-sh)/2,sw,sh,w.x,w.y,w.w,w.h);x.drawImage(f,0,0,W,H);
+ x.fillStyle='#fff';x.fillRect(0,0,W,H);const w=cfg.window,k=Math.min(w.w/im.width,w.h/im.height)*(cfg.fit=='contain'?.94:1),dw=im.width*k,dh=im.height*k;
+ x.drawImage(im,w.x+(w.w-dw)/2,w.y+(w.h-dh)/2,dw,dh);x.drawImage(f,0,0,W,H);
  if(code&&cfg.code){const q=cfg.code;x.font='700 '+q.size+'px Arial,Tahoma,sans-serif';x.fillStyle=q.color;x.textAlign=q.anchor||'middle';x.fillText(code,q.x,q.y)}return c}
 
 /* ================= shell ================= */
-const NAV=[['dash','home','الرئيسية'],['new','plus','منتج جديد'],['batch','layers','رفع دفعة'],['review','check','المراجعة'],['log','clock','السجل'],['set','sliders','الإعدادات']];
+const NAV=[['dash','home','الرئيسية'],['new','plus','منتج جديد'],['batch','layers','رفع دفعة'],['review','check','المراجعة'],['log','clock','السجل'],['video','film','فيديو للسوشيال'],['set','sliders','الإعدادات']];
 function counts(){const c={all:S.drafts.length,ready:0,nocode:0,nosec:0,noimg:0,pub:0};S.drafts.forEach(d=>c[kind(d)]++);c.todo=c.all-c.pub;return c}
 function shell(inner){const c=counts(),st=S.status||{};
  return `<div class="app"><aside><div class="brand"><div class="logo">م</div><div><b>ميكانيزم</b><small>مدير المنتجات</small></div></div>
  ${NAV.map(n=>`<button class="nav ${S.page===n[0]?'on':''}" data-go="${n[0]}">${ic(n[1])}<span>${n[2]}</span>${n[0]==='review'&&c.todo?`<span class="n">${c.todo}</span>`:''}</button>`).join('')}
  <div class="side-foot"><span><i class="dot ${st.supabase?'ok':''}"></i>الموقع والسيستم</span><span><i class="dot ${st.claude?'ok':''}"></i>كتابة الوصف</span><span><i class="dot ${st.wa?'ok':''}"></i>كتالوج الواتساب</span></div></aside>
  <main>${inner}</main></div>`}
-function render(){if(!S.ready)return;const P={dash:vDash,new:vNew,batch:vBatch,review:vReview,log:vLog,set:vSet}[S.page];
+function render(){if(!S.ready)return;const P={dash:vDash,new:vNew,batch:vBatch,review:vReview,log:vLog,set:vSet,video:vVideo}[S.page];
  $('root').innerHTML=shell(P());document.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>go(b.dataset.go));(AFTER[S.page]||(()=>{}))();if(S.open)drawer()}
 function go(p){S.page=p;S.open=null;render();window.scrollTo(0,0)}
 function head(t,s,act){return `<div class="top"><div><h1>${t}</h1><p class="sub">${s||''}</p></div><div class="mini">${act||''}</div></div>`}
@@ -231,6 +232,63 @@ AFTER.new=()=>{const nm=$('n_name'),dz=$('n_drop'),fi=$('n_files');
   try{const d=await api('/api/drafts',{method:'POST',body:fd});
    S.nImgs=[];S.match=null;await reload();S.page='review';S.open=d.id;render();toast('المنتج جاهز للمراجعة','ok')}catch(e){toast(e.message,'bad');b.disabled=false;b.innerHTML=ic('wand')+'جهّز المنتج'}};
  showMatch();newPreview();nReady()};
+
+/* ================= 🎬 فيديو للسوشيال ================= */
+const VF={v:'طولي — ريلز وتيك توك وشورتس',s:'مربع — بوست فيسبوك وإنستجرام',l:'عرضي — يوتيوب'};
+const V={file:null,url:'',start:0,end:0,cover:null,name:'',code:'',fm:new Set(['v','s']),list:[],busy:false};
+const vfu=(id,n,dl)=>`/api/videos/${id}/file/${n}?pass=${encodeURIComponent(pass())}${dl?'&dl='+encodeURIComponent(dl):''}`;
+const ts=t=>{t=+t||0;const m=Math.floor(t/60),s=(t%60).toFixed(1);return m+':'+(s<10?'0':'')+s};
+async function copyT(t){try{await navigator.clipboard.writeText(t)}catch(e){const a=document.createElement('textarea');a.value=t;document.body.append(a);a.select();document.execCommand('copy');a.remove()}toast('اتنسخ ✔','ok')}
+function vVideo(){return head('فيديو للسوشيال','ارفع فيديو المنتج، والأداة تجهّزه لكل المنصات بلوجو ميكانيزم، وتكتب العنوان والبوست والهاشتاجات بالعامية.')+
+ `<div class="grid2"><div class="card form"><h2>${ic('film',20)} فيديو جديد</h2>
+ ${V.url?`<video id="vv" src="${V.url}" controls playsinline style="width:100%;max-height:340px;border-radius:12px;background:#000"></video>
+ <div class="mini" style="margin-top:8px"><button class="btn ghost sm" id="v_s">⏮ ابدأ من هنا</button><button class="btn ghost sm" id="v_e">⏭ اقطع لحد هنا</button><button class="btn ghost sm" id="v_c">🖼️ خليها الغلاف</button><button class="btn ghost sm" id="v_x">${ic('x')}غيّر الفيديو</button></div>
+ <p class="hint" id="v_cut">من ${ts(V.start)} لحد ${V.end?ts(V.end):'الآخر'}${V.cover!=null?' · الغلاف عند '+ts(V.cover):''}</p>`
+ :`<div class="drop" id="v_drop" tabindex="0">${ic('up')}<b>اسحب الفيديو هنا أو دوس للاختيار</b><span>mp4 أو mov من الموبايل</span></div>`}
+ <input id="v_file" type="file" accept="video/*" hidden>
+ <label class="f">المنتج (اكتب الاسم أو الكود)<input id="v_q" value="${esc(V.name)}" placeholder="مثلاً: دراع باكم / P0114" autocomplete="off"></label><div id="v_m" class="mini"></div>
+ <div class="row"><label class="f">الاسم اللي هيظهر على الفيديو<input id="v_name" value="${esc(V.name)}"></label><label class="f">الكود<input id="v_code" class="code" value="${esc(V.code)}"></label></div>
+ <label class="f">العنوان على الفيديو (اختياري)<input id="v_title" placeholder="سيبه فاضي والذكاء الاصطناعي يكتب عنوان بيشد"></label>
+ <label class="f">ملاحظات للذكاء الاصطناعي (اختياري)<textarea id="v_notes" style="min-height:52px" placeholder="مثلاً: الفيديو بيوري إزاي الدراع بيمسك الضلفة فوق ومش بتقع"></textarea></label>
+ <div><b style="font-size:13.5px">المقاسات</b>${Object.entries(VF).map(([k,l])=>`<label style="display:flex;gap:8px;align-items:center;margin-top:6px;font-size:14px"><input type="checkbox" class="v_fm" data-k="${k}" ${V.fm.has(k)?'checked':''} style="width:auto"> ${l}</label>`).join('')}</div>
+ <div><b style="font-size:13.5px">المونتاج</b>${[['v_sil','✂️ شيل السكتات (الأجزاء اللي مفيهاش كلام)'],['v_cap','💬 ترجمة الكلام على الشاشة'],['v_mo','✨ جرافيك متحرك وزووم']].map(([id,l])=>`<label style="display:flex;gap:8px;align-items:center;margin-top:6px;font-size:14px"><input type="checkbox" id="${id}" checked style="width:auto"> ${l}</label>`).join('')}</div>
+ <button class="btn gold" id="v_go" ${V.file&&!V.busy?'':'disabled'}>${ic('wand')}جهّز الفيديو</button><div id="v_prog" class="hint"></div></div>
+ <div class="card"><h2>${ic('clock',20)} الفيديوهات</h2><div id="v_list">${vList()}</div></div></div>`}
+function vList(){if(!V.list.length)return `<div class="empty">${ic('film')}<p>لسه مفيش فيديوهات.</p></div>`;
+ return V.list.map(m=>{if(m.status==='working')return `<div class="note info" style="margin-bottom:10px"><span class="spin dk"></span><span><b>${esc(m.name)}</b><br>${esc(m.step||'شغال…')}</span></div>`;
+  if(m.status==='failed')return `<div class="note bad" style="margin-bottom:10px">${ic('warn',18)}<span><b>${esc(m.name)}</b>: ماتجهزش — ${esc(m.err||'')}<br><button class="btn ghost sm" data-vdel="${m.id}">حذف</button></span></div>`;
+  const a=m.ai||{},tags=(a.hashtags||[]).map(h=>'#'+h).join(' '),f=m.files||{};
+  const box=(t,id,val,rows)=>`<label class="f">${t}<textarea data-vai="${m.id}" data-k="${id}" style="min-height:${rows||60}px">${esc(val||'')}</textarea></label><button class="btn ghost sm" data-vcp="${m.id}" data-k="${id}">${ic('copy')}نسخ</button>`;
+  return `<details class="card" style="margin-bottom:12px;padding:14px" ${V.open===m.id?'open':''}><summary style="cursor:pointer;font-weight:700">${f.cover?`<img src="${vfu(m.id,'cover.jpg')}" style="width:56px;height:48px;object-fit:cover;border-radius:8px;vertical-align:middle;margin-left:8px">`:''}${esc(m.name)} <span class="chip ok">جاهز</span> <small class="hint">${ago(m.done||m.created)}</small></summary>
+  ${m.removed?`<p class="hint" style="margin:6px 0">✂️ اتشال ${m.removed} ثانية سكتات — الفيديو بقى ${m.len} ثانية</p>`:''}${(m.captions||[]).length?`<p class="hint" style="margin:6px 0">💬 اتكتب ${m.captions.length} جملة ترجمة على الشاشة</p>`:''}
+  ${m.aiErr?`<div class="note warn" style="margin:8px 0">${ic('warn',18)}<span>النصوص ماتكتبتش: ${esc(m.aiErr)}</span></div>`:''}
+  <div class="mini" style="margin:10px 0">${(m.formats||[]).filter(k=>f[k]).map(k=>`<a class="btn sm" href="${vfu(m.id,f[k],(m.code||'video')+'-'+k+'.mp4')}">${ic('dl')}${esc(VF[k]||k)}</a>`).join('')}${f.cover?`<a class="btn ghost sm" href="${vfu(m.id,'cover.jpg',(m.code||'video')+'-cover.jpg')}">${ic('dl')}الغلاف</a>`:''}</div>
+  ${(m.formats||[]).filter(k=>f[k]).slice(0,1).map(k=>`<video src="${vfu(m.id,f[k])}" controls playsinline preload="metadata" style="width:100%;max-height:420px;border-radius:12px;background:#000"></video>`).join('')}
+  ${a.hook||a.post?`<div style="margin-top:10px">${box('🎯 العنوان اللي بيشد','hook',a.hook,44)}${box('📘 فيسبوك وإنستجرام (البوست + الهاشتاجات)','fb',(a.post||'')+'\n\n'+tags,150)}${box('🎵 تيك توك والريلز','tt',(a.tiktok||'')+'\n'+tags,80)}${box('▶️ عنوان يوتيوب','yt',a.yt_title,44)}${box('▶️ وصف يوتيوب','ytd',(a.yt_desc||'')+'\n\n'+tags,110)}
+  ${(a.names||[]).length?`<p class="hint">الأسماء اللي الناس بتدوّر بيها: ${esc(a.names.join('، '))}</p>`:''}</div>`:''}
+  <div class="mini" style="margin-top:10px"><button class="btn ghost sm" data-vdel="${m.id}">${ic('trash')}حذف</button></div></details>`}).join('')}
+let vPoll=null;
+async function vReload(){try{V.list=await api('/api/videos')}catch(e){}const l=$('v_list');if(l&&S.page==='video'){const op=[...l.querySelectorAll('details[open]')].map(d=>(d.querySelector('[data-vdel]')||{}).dataset);if(op[0]&&op[0].vdel)V.open=op[0].vdel;l.innerHTML=vList();vBind()}
+ clearTimeout(vPoll);if(V.list.some(m=>m.status==='working'))vPoll=setTimeout(vReload,4000)}
+function vBind(){document.querySelectorAll('[data-vdel]').forEach(b=>b.onclick=async e=>{e.preventDefault();if(!confirm('حذف الفيديو ده وكل نسخه؟'))return;await api('/api/videos/'+b.dataset.vdel,{method:'DELETE'});vReload()});
+ document.querySelectorAll('[data-vcp]').forEach(b=>b.onclick=()=>{const t=document.querySelector(`textarea[data-vai="${b.dataset.vcp}"][data-k="${b.dataset.k}"]`);copyT(t?t.value:'')})}
+AFTER.video=()=>{const fi=$('v_file'),pick=()=>fi.click();
+ const setF=f=>{if(!f)return;if(V.url)URL.revokeObjectURL(V.url);V.file=f;V.url=URL.createObjectURL(f);V.start=0;V.end=0;V.cover=null;render()};
+ fi.onchange=()=>setF(fi.files[0]);const dz=$('v_drop');if(dz){dz.onclick=pick;dz.ondragover=e=>{e.preventDefault();dz.classList.add('over')};dz.ondragleave=()=>dz.classList.remove('over');dz.ondrop=e=>{e.preventDefault();setF(e.dataTransfer.files[0])}}
+ const vv=$('vv'),cut=()=>{const c=$('v_cut');if(c)c.textContent=`من ${ts(V.start)} لحد ${V.end?ts(V.end):'الآخر'}${V.cover!=null?' · الغلاف عند '+ts(V.cover):''}`};
+ if(vv){$('v_s').onclick=()=>{V.start=vv.currentTime;if(V.end&&V.end<=V.start)V.end=0;cut()};$('v_e').onclick=()=>{if(vv.currentTime<=V.start)return toast('النهاية لازم تبقى بعد البداية','bad');V.end=vv.currentTime;cut()};$('v_c').onclick=()=>{V.cover=vv.currentTime;cut();toast('الغلاف هيبقى من اللقطة دي','ok')};$('v_x').onclick=()=>{V.file=null;V.url='';render()}}
+ let mt;$('v_q').oninput=e=>{clearTimeout(mt);const q=e.target.value.trim();mt=setTimeout(async()=>{if(q.length<2){$('v_m').innerHTML='';return}try{const r=await api('/api/match?name='+encodeURIComponent(q));const cs=(r.candidates||[]).filter(c=>c.score>.25).slice(0,5);
+  $('v_m').innerHTML=cs.map(c=>`<button class="btn ghost sm" data-vp="${esc(c.code)}" data-vn="${esc(c.name)}"><span class="code">${esc(c.code)}</span> ${esc(c.name)}</button>`).join('');document.querySelectorAll('[data-vp]').forEach(b=>b.onclick=()=>{V.code=b.dataset.vp;V.name=b.dataset.vn;$('v_name').value=V.name;$('v_code').value=V.code;$('v_m').innerHTML=''})}catch(_){}},350)};
+ $('v_name').oninput=e=>V.name=e.target.value;$('v_code').oninput=e=>V.code=e.target.value;
+ document.querySelectorAll('.v_fm').forEach(c=>c.onchange=()=>{c.checked?V.fm.add(c.dataset.k):V.fm.delete(c.dataset.k)});
+ $('v_go').onclick=()=>{if(!V.file)return toast('اختار فيديو الأول','bad');const name=$('v_name').value.trim();if(!name)return toast('اكتب اسم المنتج','bad');if(!V.fm.size)return toast('اختار مقاس واحد على الأقل','bad');
+  const fd=new FormData();fd.append('video',V.file);fd.append('name',name);fd.append('code',$('v_code').value.trim());fd.append('title',$('v_title').value.trim());fd.append('notes',$('v_notes').value.trim());fd.append('formats',[...V.fm].join(','));fd.append('start',V.start||0);fd.append('end',V.end||0);if(V.cover!=null)fd.append('cover_t',V.cover);fd.append('silence',$('v_sil').checked?'1':'0');fd.append('captions',$('v_cap').checked?'1':'0');fd.append('motion',$('v_mo').checked?'1':'0');
+  const b=$('v_go'),pr=$('v_prog');b.disabled=true;V.busy=true;const x=new XMLHttpRequest();x.open('POST','/api/videos');x.setRequestHeader('x-pass',pass());
+  x.upload.onprogress=e=>{if(e.lengthComputable)pr.textContent='بيترفع… '+Math.round(e.loaded/e.total*100)+'%'};
+  x.onload=()=>{V.busy=false;let j={};try{j=JSON.parse(x.responseText)}catch(_){}if(x.status!==200){pr.textContent='';b.disabled=false;return toast(j.error||'ماترفعش','bad')}
+   toast('الفيديو اترفع — بيتجهز دلوقتي (دقيقة أو اتنين)','ok');V.file=null;V.url='';V.start=0;V.end=0;V.cover=null;V.open=j.id;render();vReload()};
+  x.onerror=()=>{V.busy=false;b.disabled=false;pr.textContent='';toast('ماترفعش — اتأكد إن الأداة شغالة','bad')};x.send(fd)};
+ vBind();vReload()};
 
 /* ================= batch ================= */
 let bid=0;const newRow=(n)=>({id:++bid,name:n||'',files:[],ims:[],st:'wait',msg:''});
