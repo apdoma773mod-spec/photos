@@ -162,6 +162,48 @@ app.get('/api/match', wrap(async (req, res) => {
   res.json(name ? await erp.findByName(name) : { match: null, candidates: [] });
 }));
 
+// --- 🎬 فيديو للسوشيال --------------------------------------------------------
+const video = require('./video');
+const VDIR = path.join(__dirname, '..', 'data', 'videos');
+const vdir = id => { if (!/^[a-f0-9]{12}$/.test(id)) throw new Error('bad id'); return path.join(VDIR, id); };
+const vupload = multer({ storage: multer.diskStorage({ destination: async (req, f, cb) => { await fs.mkdir(VDIR, { recursive: true }); cb(null, VDIR); },
+  filename: (req, f, cb) => cb(null, 'up-' + crypto.randomBytes(6).toString('hex') + path.extname(f.originalname || '.mp4').toLowerCase()) }),
+  limits: { fileSize: 600e6, files: 1 }, fileFilter: (req, f, cb) => cb(null, /^video\//.test(f.mimetype) || /\.(mp4|mov|m4v|3gp|webm|mkv|avi)$/i.test(f.originalname || '')) });
+const vsave = m => fs.writeFile(path.join(vdir(m.id), 'meta.json'), JSON.stringify(m, null, 1));
+app.get('/api/videos/formats', (req, res) => res.json(Object.fromEntries(Object.entries(video.FORMATS).map(([k, f]) => [k, f.label]))));
+app.post('/api/videos', vupload.single('video'), wrap(async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'ارفع فيديو (mp4 أو mov)' });
+  const b = req.body || {}, id = crypto.randomBytes(6).toString('hex'), d = vdir(id);
+  await fs.mkdir(d, { recursive: true });
+  const ext = path.extname(req.file.filename) || '.mp4';
+  await fs.rename(req.file.path, path.join(d, 'src' + ext));
+  const formats = String(b.formats || 'v').split(',').filter(k => video.FORMATS[k]);
+  const m = { id, created: new Date().toISOString(), src: 'src' + ext, orig: req.file.originalname || '', name: String(b.name || '').trim() || 'منتج', code: String(b.code || '').trim(),
+    title: String(b.title || '').trim(), notes: String(b.notes || '').trim(), start: +b.start || 0, end: +b.end || 0, cover_t: b.cover_t === '' || b.cover_t == null ? null : +b.cover_t,
+    opts: { silence: b.silence !== '0', captions: b.captions !== '0', motion: b.motion !== '0' }, formats: formats.length ? formats : ['v'], phone: String(b.phone || '').trim() || await site.shopPhone(), status: 'working', step: 'بيبدأ…', files: {} };
+  await vsave(m);
+  res.json(m);
+  video.processVideo(d, m, vsave);            // في الخلفية — الصفحة بتسأل على الحالة
+}));
+app.get('/api/videos', wrap(async (req, res) => {
+  await fs.mkdir(VDIR, { recursive: true }); const out = [];
+  for (const id of await fs.readdir(VDIR)) { try { out.push(JSON.parse(await fs.readFile(path.join(vdir(id), 'meta.json'), 'utf8'))); } catch {} }
+  res.json(out.sort((a, b) => b.created.localeCompare(a.created)));
+}));
+app.get('/api/videos/:id', wrap(async (req, res) => res.json(JSON.parse(await fs.readFile(path.join(vdir(req.params.id), 'meta.json'), 'utf8')))));
+app.patch('/api/videos/:id', wrap(async (req, res) => {
+  const m = JSON.parse(await fs.readFile(path.join(vdir(req.params.id), 'meta.json'), 'utf8'));
+  if (req.body && req.body.ai && typeof req.body.ai === 'object') m.ai = Object.assign(m.ai || {}, req.body.ai);
+  await vsave(m); res.json(m);
+}));
+app.get('/api/videos/:id/file/:name', wrap(async (req, res) => {
+  const n = String(req.params.name); if (!/^(v|s|l)\.mp4$|^cover\.jpg$/.test(n)) return res.sendStatus(404);
+  const p = path.join(vdir(req.params.id), n);
+  if (req.query.dl) res.download(p, (req.query.dl === '1' ? n : String(req.query.dl).replace(/[\\/:*?"<>|]/g, '')) );
+  else res.sendFile(p);
+}));
+app.delete('/api/videos/:id', wrap(async (req, res) => { await fs.rm(vdir(req.params.id), { recursive: true, force: true }); res.json({ ok: true }); }));
+
 // --- frame settings (code position / size / colour) -------------------------
 // «ابعتلي على الواتساب»: بنحط المنتج (صور بالفريم + نص جاهز للكتالوج) في فولدر outbox، وجسر الواتساب بيبعته
 const OUTBOX = process.env.WA_OUTBOX || 'C:\\mekanizm-whatsapp\\outbox';

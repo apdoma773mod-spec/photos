@@ -48,4 +48,7 @@ async function addSection(name) {
   throw new Error('الموقع اتعدل من مكان تاني، جرّب تاني');
 }
 
-module.exports = { publish, sections, addSection };
+// رقم واتساب المحل من إعدادات الموقع (للفيديوهات)
+async function shopPhone() { try { const d = (await getRow()).data || {}; const p = d.phone || (Array.isArray(d.phones) ? (d.phones[0] && (d.phones[0].n || d.phones[0].phone || d.phones[0])) : ''); return String(p || '').trim(); } catch { return ''; } }
+
+module.exports = { publish, sections, addSection, shopPhone };

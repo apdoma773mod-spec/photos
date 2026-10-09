@@ -100,4 +100,4 @@ async function describe(name, imageBuf, { hint = '', sec = '' } = {}) {
 }
 
 const aiOn = () => !!(process.env.ANTHROPIC_API_KEY || process.env.GEMINI_API_KEY);
-module.exports = { describe, aiOn };
+module.exports = { describe, aiOn, post };
