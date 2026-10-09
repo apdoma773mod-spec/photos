@@ -64,6 +64,49 @@ const { MessageMedia } = require('whatsapp-web.js');
 const OUTBOX = __dirname + '\\outbox';
 let ready = false, sending = false;
 client.on('ready', () => { ready = true; });
+// يرجّع دالة بتبعت لرقم معيّن (واتساب بقى عايز الـ id الحقيقي، ولازم نوصل للمحادثة نفسها)
+async function sayTo(raw) {
+  let num = String(raw || '').replace(/\D/g, ''); if (num.startsWith('0')) num = '2' + num;
+  const wid = await client.getNumberId(num);
+  if (!wid) throw new Error('الرقم مش على واتساب: ' + num);
+  const to = wid._serialized; log('📲 ببعت لـ', to);
+  let chat = null; for (const id of [to, num + '@c.us']) { try { chat = await client.getChatById(id); if (chat) break; } catch (e) {} }
+  if (!chat) { try { const all = await client.getChats(); chat = all.find(c => c.id && (c.id._serialized === to || c.id.user === num)) || null; } catch (e) {} }
+  if (!chat) throw new Error('مفيش محادثة مع ' + num);
+  return (c, o) => chat.sendMessage(c, Object.assign({ sendSeen: false }, o || {}));
+}
+// رقم الموبايل الحقيقي للي باعت (حتى لو واتساب مخبيه ورا @lid)
+async function phoneOf(msg, contact) {
+  let number = contact.number;
+  if (msg.from.endsWith('@lid')) {
+    try { const m = await client.getContactLidAndPhone([msg.from]); const pn = m && m[0] && (m[0].pn || m[0].phone); if (pn) number = String(pn).split('@')[0]; }
+    catch (e) { log('تعذر جلب رقم الموبايل:', e.message); }
+  }
+  return (number || '').replace(/\D/g, '');
+}
+async function rpc(fn, body) {
+  const r = await fetch(SB_URL + '/rest/v1/rpc/' + fn, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: SB_KEY }, body: JSON.stringify(body) });
+  const t = await r.text(); if (!r.ok) throw new Error(`${r.status} ${t.slice(0, 200)}`); return t ? JSON.parse(t) : null;
+}
+// صندوق الصادر على السيرفر: السيستم (من أي جهاز) بيحط رسالة، والجسر بيبعتها من رقم المحل
+let cloudBusy = false;
+async function cloudOut() {
+  if (!ready || cloudBusy) return; cloudBusy = true;
+  try {
+    const rows = await rpc('wa_out_claim', { p_secret: SECRET }) || [];
+    for (const o of rows) {
+      try {
+        const say = await sayTo(o.to_phone);
+        for (const u of (o.imgs || []).slice(0, 6)) { try { await say(await MessageMedia.fromUrl(u, { unsafeMime: true })); } catch (e) { log('صورة ماتبعتتش:', e.message); } }
+        if (o.body) await say(o.body);
+        await rpc('wa_out_done', { p_secret: SECRET, p_id: o.id, p_ok: true, p_err: '' });
+        log(`📤 اتبعت من السيستم لـ ${o.to_phone} (${(o.imgs || []).length} صور)`);
+      } catch (e) { log('✘ رسالة من السيستم ماتبعتتش:', e.message); try { await rpc('wa_out_done', { p_secret: SECRET, p_id: o.id, p_ok: false, p_err: e.message }); } catch (_) {} }
+    }
+  } catch (e) { if (!/fetch failed/i.test(e.message)) log('✘ صندوق الصادر (السيرفر):', e.message); }
+  cloudBusy = false;
+}
+setInterval(cloudOut, 6000);
 async function outbox() {
   try { fs.writeFileSync(__dirname + '\\outbox.alive', String(Date.now())); } catch (e) {}
   if (!ready || sending || !fs.existsSync(OUTBOX)) return;
@@ -75,14 +118,7 @@ async function outbox() {
       fs.renameSync(jf, dir + '\\job.sending');   // عشان لو حصل خطأ ميتبعتش مرتين
       try {
         const job = JSON.parse(fs.readFileSync(dir + '\\job.sending', 'utf8'));
-        const num = String(job.to || '').replace(/\D/g, '');
-        let step = 'getNumberId'; const wid = await client.getNumberId(num).catch(e => { throw new Error(step + ': ' + e.message); });           // واتساب بقى عايز الـ id الحقيقي مش رقم@c.us
-        if (!wid) throw new Error('الرقم مش على واتساب: ' + num);
-        const to = wid._serialized; log('📲 ببعت لـ', to);
-        let chat = null; for (const id of [to, num + '@c.us']) { try { chat = await client.getChatById(id); if (chat) break; } catch (e) { log('getChatById', id, (e.stack || e.message).replace(/\s+/g, ' ').slice(0, 300)); } }
-        if (!chat) { try { const all = await client.getChats(); chat = all.find(c => c.id && (c.id._serialized === to || c.id.user === num)) || null; log('getChats', all.length, chat ? 'لقيتها' : 'مش لاقيها'); } catch (e) { log('getChats', (e.stack || e.message).replace(/\s+/g, ' ').slice(0, 300)); } }
-        if (!chat) throw new Error('مفيش محادثة مع ' + num);
-        const say = (c, o) => chat.sendMessage(c, Object.assign({ sendSeen: false }, o || {}));
+        const say = await sayTo(job.to);
         for (const f of job.images || []) await say(MessageMedia.fromFilePath(dir + '\\' + f));
         if (job.text) await say(job.text);
         fs.rmSync(dir, { recursive: true, force: true });
@@ -99,20 +135,25 @@ client.on('message', async (msg) => {
     const text = (msg.body || '').trim();
     log(`وصلت رسالة: من=${msg.from} نوع=${msg.type} نص="${text.slice(0, 60)}"`);
     if (msg.fromMe || msg.isStatus || msg.from.endsWith('@g.us')) return;
+    const msgId = (msg.id && (msg.id._serialized || msg.id.id)) || `${msg.from}-${msg.timestamp || Date.now()}`;
+    // 📷 صورة من عميل: تروح للسيستم عشان نطابقها بالأصناف
+    if (msg.hasMedia && msg.type === 'image') {
+      (async () => {
+        try {
+          const media = await msg.downloadMedia();
+          if (!media || !/^image\/(jpeg|png|webp)/.test(media.mimetype || '')) return;
+          const c = await msg.getContact(), ph = await phoneOf(msg, c);
+          const r = await rpc('wa_photo_submit', { p_secret: SECRET, p_msg_id: msgId, p_phone: ph, p_name: (c.pushname || c.name || '').trim(), p_caption: text, p_img: `data:${media.mimetype.split(';')[0]};base64,${media.data}` });
+          log(`📷 صورة من ${ph || msg.from} اتبعتت للسيستم (${r})`);
+        } catch (e) { log('✘ صورة ماتبعتتش للسيستم:', e.message); }
+      })();
+    }
     if (!text.includes(KEYWORD)) return;
 
     const contact = await msg.getContact();
-    let number = contact.number;
-    if (msg.from.endsWith('@lid')) {
-      try {
-        const m = await client.getContactLidAndPhone([msg.from]);
-        const pn = m && m[0] && (m[0].pn || m[0].phone);
-        if (pn) number = String(pn).split('@')[0];
-      } catch (e) { log('تعذر جلب رقم الموبايل:', e.message); }
-    }
     const o = {
-      msg_id: (msg.id && (msg.id._serialized || msg.id.id)) || `${msg.from}-${msg.timestamp || Date.now()}`,
-      phone: (number || '').replace(/\D/g, ''),
+      msg_id: msgId,
+      phone: await phoneOf(msg, contact),
       name: (contact.pushname || contact.name || '').trim(),
       body: text,
     };
