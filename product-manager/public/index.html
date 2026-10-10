@@ -291,30 +291,64 @@ AFTER.video=()=>{const fi=$('v_file'),pick=()=>fi.click();
  vBind();vReload()};
 
 /* ================= batch ================= */
-let bid=0;const newRow=(n)=>({id:++bid,name:n||'',files:[],ims:[],st:'wait',msg:''});
+let bid=0;const newRow=(n,code,secId)=>({id:++bid,name:n||'',code:code||'',secId:secId||'',files:[],ims:[],st:'wait',msg:''});
 function vBatch(){if(!S.batch.length)S.batch=[newRow(),newRow(),newRow()];
  return head('رفع دفعة','جهّز كذا منتج مرة واحدة: صف لكل منتج (الاسم + صوره).',`<button class="btn ghost" id="b_add">${ic('plus')}صف جديد</button><button class="btn gold" id="b_go">${ic('wand')}جهّز الكل</button>`)+
  `<div class="card form" style="margin-bottom:16px"><div class="row"><label class="f">القسم لكل المنتجات (اختياري)<select id="b_sec"><option value="">بدون، هحدده بعدين</option>${S.secs.map(s=>`<option value="${esc(s.id)}">${esc(s.name)}</option>`).join('')}<option value="__new">➕ قسم جديد...</option></select></label>
  <label class="f">الصق أسماء المنتجات (اسم في كل سطر) وهتتحول لصفوف<textarea id="b_paste" style="min-height:48px" placeholder="مفصلة هيدروليك كاتم&#10;مقبض ذهبي ٢٨٨ مم"></textarea></label></div><div><button class="btn ghost sm" id="b_paste_go">حوّل الأسماء لصفوف</button></div></div>
+ <div class="card form" style="margin-bottom:16px"><h2>${ic('layers',20)} استيراد سريع</h2>
+  <p class="hint">١) شيت (Excel أو CSV) فيه عمود <b>اسم المنتج</b>، ومعاه اختياريًا <b>الكود</b> و<b>القسم</b>. ٢) بعدها اختار كل الصور مرة واحدة، وهتتوزع على المنتجات حسب اسم الملف (الكود أو الاسم، مثال: <span class="code">P0123.jpg</span> و <span class="code">P0123-2.jpg</span>). أو اختار فولدر فيه فولدر لكل منتج (اسم الفولدر = اسم المنتج).</p>
+  <div class="mini"><button class="btn ghost sm" id="b_sheet">${ic('up',16)}استيراد شيت</button><button class="btn ghost sm" id="b_dist">${ic('img',16)}توزيع صور بأسماء الملفات</button><button class="btn ghost sm" id="b_dir">${ic('layers',16)}فولدرات منتجات</button></div>
+  <input type="file" id="b_sheet_f" accept=".csv,.tsv,.txt,.xlsx,.xls" hidden><input type="file" id="b_dist_f" accept="image/*,.heic,.heif" multiple hidden><input type="file" id="b_dir_f" webkitdirectory multiple hidden>
+  <div id="b_imp"></div></div>
  <div class="list" id="b_rows">${S.batch.map(rowHtml).join('')}</div>`}
 function rowHtml(r){const stc={wait:['في الانتظار','gray'],run:['جاري التجهيز','info'],done:['اتجهز','ok'],err:['فشل','bad']}[r.st];
- return `<div class="rowx" data-r="${r.id}"><label class="f">اسم المنتج<input data-f="name" value="${esc(r.name)}" placeholder="اسم المنتج"></label>
+ return `<div class="rowx" data-r="${r.id}"><div><label class="f">اسم المنتج<input data-f="name" value="${esc(r.name)}" placeholder="اسم المنتج"></label><input data-f="code" class="code" style="margin-top:6px" value="${esc(r.code)}" placeholder="الكود (اختياري)">${r.secId?`<span class="chip gray" style="margin-top:6px">${esc(secName(r.secId))}</span>`:''}</div>
  <div><div class="mini">${r.ims.map((im,i)=>`<div class="th"><img src="${im.src}" alt=""><button class="x" data-rx="${i}" aria-label="شيل">×</button></div>`).join('')}<button class="btn ghost sm" data-pickf>${ic('up')}صور (${r.ims.length})</button><input type="file" accept="image/*" multiple hidden data-fi></div>${r.msg?`<p class="hint" style="margin-top:6px">${esc(r.msg)}</p>`:''}</div>
  <div class="mini"><span class="chip ${stc[1]==='info'?'':stc[1]}">${r.st==='run'?'<span class="spin dk"></span>':''}${stc[0]}</span>${r.st!=='run'?`<button class="btn red sm" data-del aria-label="مسح الصف">${ic('trash',16)}</button>`:''}</div></div>`}
 AFTER.batch=()=>{const rows=$('b_rows'),by=id=>S.batch.find(r=>r.id===id);
  const redraw=()=>{rows.innerHTML=S.batch.map(rowHtml).join('');bind()};
  function bind(){rows.querySelectorAll('.rowx').forEach(el=>{const r=by(+el.dataset.r),fi=el.querySelector('[data-fi]');
-  el.querySelector('[data-f=name]').oninput=e=>r.name=e.target.value;
+  el.querySelector('[data-f=name]').oninput=e=>r.name=e.target.value;el.querySelector('[data-f=code]').oninput=e=>r.code=e.target.value;
   el.querySelector('[data-pickf]').onclick=()=>fi.click();
   fi.onchange=async()=>{for(const f0 of [...fi.files]){try{const f=await toJpg(f0);r.ims.push(await fileImg(f));r.files.push(f)}catch(e){toast('الصورة دي مش بتفتح: '+f0.name,'bad')}}redraw()};
   el.querySelectorAll('[data-rx]').forEach(b=>b.onclick=()=>{r.files.splice(+b.dataset.rx,1);r.ims.splice(+b.dataset.rx,1);redraw()});
   const dl=el.querySelector('[data-del]');if(dl)dl.onclick=()=>{S.batch=S.batch.filter(x=>x!==r);redraw()};
   el.ondragover=e=>e.preventDefault();el.ondrop=async e=>{e.preventDefault();for(const f0 of [...e.dataTransfer.files]){if(/^image\//.test(f0.type)||isHeic(f0)){try{const f=await toJpg(f0);r.ims.push(await fileImg(f));r.files.push(f)}catch(_){toast('الصورة دي مش بتفتح: '+f0.name,'bad')}}}redraw()}})}
  bind();$('b_add').onclick=()=>{S.batch.push(newRow());redraw()};
+ const imp=m=>{$('b_imp').innerHTML=m?`<div class="note info">${esc(m)}</div>`:''};
+ const nrm=t=>String(t||'').replace(/[\u064B-\u0652\u0640]/g,'').replace(/[أإآ]/g,'ا').replace(/ى/g,'ي').replace(/ة/g,'ه').replace(/[٠-٩]/g,d=>'٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/[^\u0600-\u06FFa-zA-Z0-9 ]/g,' ').replace(/\s+/g,' ').trim().toLowerCase();
+ const addImg=async(r,f0)=>{const f=await toJpg(f0);r.ims.push(await fileImg(f));r.files.push(f)};
+ const csvRows=t=>{t=t.replace(/^\uFEFF/,'');const sep=(t.split('\n')[0].match(/\t/g)||[]).length?'\t':((t.split('\n')[0].match(/;/g)||[]).length>(t.split('\n')[0].match(/,/g)||[]).length?';':',');const out=[];let row=[],cur='',q=false;
+  for(let i=0;i<t.length;i++){const c=t[i];if(q){if(c==='"'){if(t[i+1]==='"'){cur+='"';i++}else q=false}else cur+=c}else if(c==='"')q=true;else if(c===sep){row.push(cur);cur=''}else if(c==='\n'||c==='\r'){if(c==='\r'&&t[i+1]==='\n')i++;row.push(cur);cur='';if(row.some(x=>x.trim()))out.push(row);row=[]}else cur+=c}
+  row.push(cur);if(row.some(x=>x.trim()))out.push(row);return out};
+ const readSheet=async f=>{if(/\.(csv|tsv|txt)$/i.test(f.name))return csvRows(await f.text());
+  if(!window.XLSX)await new Promise((ok,no)=>{const sc=document.createElement('script');sc.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';sc.onload=ok;sc.onerror=()=>no(new Error('مقدرتش أحمّل قارئ Excel، احفظ الشيت CSV وجرّب'));document.head.append(sc)});
+  const wb=XLSX.read(await f.arrayBuffer(),{type:'array'});return XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,defval:''}).filter(r=>r.some(x=>String(x).trim()))};
+ $('b_sheet').onclick=()=>$('b_sheet_f').click();
+ $('b_sheet_f').onchange=async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;try{const rs=await readSheet(f);if(!rs.length)return imp('الشيت فاضي');
+  const hd=rs[0].map(x=>nrm(x)),find=re=>hd.findIndex(h=>re.test(h)),iN=find(/اسم|صنف|منتج|name|product|item/),iC=find(/كود|code|sku/),iS=find(/قسم|تصنيف|section|categor/),hasH=iN>=0||iC>=0||iS>=0;
+  const nI=hasH?(iN>=0?iN:0):0,body=hasH?rs.slice(1):rs;S.batch=S.batch.filter(r=>r.name||r.files.length);let n=0,badSec=new Set();
+  for(const r of body){const name=String(r[nI]||'').trim();if(!name)continue;const code=iC>=0?String(r[iC]||'').trim():'';let sid='';if(iS>=0&&String(r[iS]).trim()){const sn=nrm(r[iS]),h=S.secs.find(x=>nrm(x.name)===sn);if(h)sid=h.id;else badSec.add(String(r[iS]).trim())}
+   S.batch.push(newRow(name,code,sid));n++}
+  redraw();imp('اتضاف '+n+' منتج من الشيت.'+(badSec.size?' أقسام مش موجودة على الموقع: '+[...badSec].slice(0,4).join('، ')+' (حددها بعدين).':'')+' دلوقتي اختار الصور وهتتوزع بأسماء الملفات.')}catch(er){imp(er.message)}};
+ $('b_dist').onclick=()=>$('b_dist_f').click();
+ $('b_dist_f').onchange=async e=>{const fs=[...e.target.files];e.target.value='';if(!fs.length)return;let ok=0;const miss=[];
+  for(const f0 of fs){const base=f0.name.replace(/\.[^.]+$/,'').trim(),stripped=base.replace(/(?:[\s._-]+\d{1,2}|\s*\(\d{1,2}\))$/,'').trim(),cands=[base,stripped];
+   const r=S.batch.find(r=>cands.some(c=>(r.code&&r.code.toLowerCase()===c.toLowerCase())||(r.name&&nrm(r.name)===nrm(c))));
+   if(!r){miss.push(f0.name);continue}try{await addImg(r,f0);ok++}catch(_){miss.push(f0.name)}}
+  redraw();imp('اتوزع '+ok+' صورة'+(miss.length?' — '+miss.length+' ملف ما لقيتلوش منتج بنفس الكود أو الاسم: '+miss.slice(0,3).join('، ')+(miss.length>3?'...':''):''))};
+ $('b_dir').onclick=()=>$('b_dir_f').click();
+ $('b_dir_f').onchange=async e=>{const fs=[...e.target.files].filter(f=>/^image\//.test(f.type)||/\.(jpe?g|png|webp|heic|heif)$/i.test(f.name));e.target.value='';if(!fs.length)return imp('مفيش صور في الفولدر');
+  const g={};for(const f of fs){const pp=(f.webkitRelativePath||'').split('/');if(pp.length<3)continue;(g[pp[1]]=g[pp[1]]||[]).push(f)}
+  const names=Object.keys(g);if(!names.length)return imp('اختار فولدر فيه فولدرات فرعية، كل فولدر منتج.');S.batch=S.batch.filter(r=>r.name||r.files.length);
+  for(const nm of names){const m=nm.match(/^([Pp]?\d+)\s*[-_]\s*(.+)$/),r=newRow(m?m[2].trim():nm.trim(),m?m[1]:'');g[nm].sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true}));
+   for(const f0 of g[nm].slice(0,30)){try{await addImg(r,f0)}catch(_){}}S.batch.push(r)}
+  redraw();imp('اتضاف '+names.length+' منتج من الفولدرات. راجع الأسماء وادوس «جهّز الكل».')};
  $('b_paste_go').onclick=()=>{const ls=$('b_paste').value.split('\n').map(x=>x.trim()).filter(Boolean);if(!ls.length)return;S.batch=S.batch.filter(r=>r.name||r.files.length);ls.forEach(n=>S.batch.push(newRow(n)));$('b_paste').value='';redraw()};
  $('b_go').onclick=async()=>{const todo=S.batch.filter(r=>r.st!=='done'&&r.name.trim()&&r.files.length);if(!todo.length)return toast('كمّل الاسم والصور في صف واحد على الأقل','bad');
   $('b_go').disabled=true;let ok=0;const sec=$('b_sec').value;
-  const one=async r=>{r.st='run';r.msg='';redraw();const fd=new FormData();fd.append('name',r.name.trim());fd.append('sec',sec);r.files.forEach(f=>fd.append('images',f));
+  const one=async r=>{r.st='run';r.msg='';redraw();const fd=new FormData();fd.append('name',r.name.trim());fd.append('sec',r.secId||sec);if(r.code.trim())fd.append('code',r.code.trim());r.files.forEach(f=>fd.append('images',f));
    try{await api('/api/drafts',{method:'POST',body:fd});r.st='done';ok++}catch(e){r.st='err';r.msg=e.message}redraw()};
   const q=[...todo];await Promise.all([0,1].map(async()=>{while(q.length)await one(q.shift())}));
   await reload();$('b_go')&&($('b_go').disabled=false);toast(ok+' منتج اتجهز، راجعهم من «المراجعة»',ok?'ok':'bad');render()}};
