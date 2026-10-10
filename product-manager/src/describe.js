@@ -19,9 +19,9 @@ async function viaClaude(name, img, hint, sec) {
 }
 
 // fetch بتعلّق مع الطلبات الكبيرة (الصورة) على الجهاز ده — https عادي على IPv4 شغال في ثانية
-function post(url, body) {
+function post(url, body, timeout = 30e3) {
   return new Promise((ok, no) => {
-    const q = require('https').request(url, { method: 'POST', family: 4, timeout: 30e3,
+    const q = require('https').request(url, { method: 'POST', family: 4, timeout,
       headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body), 'x-goog-api-key': process.env.GEMINI_API_KEY } }, r => {
       let d = ''; r.setEncoding('utf8'); r.on('data', c => d += c);
       r.on('end', () => { let json = {}; try { json = JSON.parse(d); } catch {} ok({ status: r.statusCode, json }); });

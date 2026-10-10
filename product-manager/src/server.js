@@ -9,6 +9,7 @@ const { frameImage } = require('./frame');
 const { describe } = require('./describe');
 const site = require('./site');
 const wa = require('./whatsapp');
+const enh = require('./enhance');
 
 const DIR = path.join(__dirname, '..', 'data', 'drafts');
 const app = express();
@@ -33,9 +34,27 @@ const writeMeta = (id, m) => fs.writeFile(path.join(dir(id), 'meta.json'), JSON.
 async function reframe(m) {
   for (let i = 0; i < m.count; i++) {
     if (m.removed.includes(i)) continue;
-    const o = await fs.readFile(path.join(dir(m.id), `o${i}.jpg`));
+    const useEnh = (m.enh || []).includes(i), o = await fs.readFile(path.join(dir(m.id), useEnh ? `e${i}.jpg` : `o${i}.jpg`));
     await fs.writeFile(path.join(dir(m.id), `f${i}.jpg`), await frameImage(o, m.code));
   }
+  m.ev = (m.ev || 0) + 1;                       // نسخة الصور (عشان المتصفح مايفضلش يعرض القديم)
+}
+
+// تحسين الخلفية بالذكاء الاصطناعي لمجموعة صور (2 في نفس الوقت)، والفاشل بيفضل على الأصل
+async function enhanceIdx(m, idxs) {
+  const q = [...idxs], fails = [];
+  m.enh = m.enh || [];
+  await Promise.all([0, 1].map(async () => {
+    while (q.length) {
+      const i = q.shift();
+      try {
+        const out = await enh.enhance(await fs.readFile(path.join(dir(m.id), `o${i}.jpg`)));
+        await fs.writeFile(path.join(dir(m.id), `e${i}.jpg`), out);
+        if (!m.enh.includes(i)) m.enh.push(i);
+      } catch (e) { fails.push(`صورة ${i + 1}: ${e.message}`); }
+    }
+  }));
+  return fails;
 }
 const mismatch = m => !!(m.erpName && erp.norm(m.erpName) !== erp.norm(m.name));
 const view = m => ({ ...m, mismatch: mismatch(m) });
@@ -63,6 +82,10 @@ app.post('/api/drafts', upload.array('images', 30), wrap(async (req, res) => {
 
   // 2) originals + framed
   for (let i = 0; i < req.files.length; i++) await fs.writeFile(path.join(dir(id), `o${i}.jpg`), req.files[i].buffer);
+  if (req.body.enhance === '1' && enh.configured()) {
+    const fails = await enhanceIdx(m, [...Array(m.count).keys()]);
+    if (fails.length) m.warnings.push('تحسين الخلفية فشل لـ ' + fails.length + ' صورة (فضلت الأصل): ' + fails[0]);
+  }
   await reframe(m);
 
   // 3) description from the first framed image
@@ -118,6 +141,24 @@ app.post('/api/drafts/:id/create-in-system', wrap(async (req, res) => {
   await erp.create({ code, name: m.name, cat, price: b.price, qty: b.qty, unit: b.unit, cost: b.cost });
   m.code = code; m.erpName = m.name; m.price = +b.price || 0;
   m.warnings = m.warnings.filter(w => !w.includes('مالقيتش كود'));
+  await reframe(m); await writeMeta(m.id, m);
+  res.json(view(m));
+}));
+
+// تحسين الخلفية (اختياري): i = رقم صورة أو 'all'، undo=true بيرجّع الأصل
+app.post('/api/drafts/:id/enhance', wrap(async (req, res) => {
+  const m = await readMeta(req.params.id), b = req.body || {};
+  if (m.status === 'published') return res.status(409).json({ error: 'اترفع خلاص' });
+  const live = [...Array(m.count).keys()].filter(i => !m.removed.includes(i));
+  const idx = b.i === 'all' ? live : [+b.i].filter(i => live.includes(i));
+  if (!idx.length) return res.status(400).json({ error: 'اختار صورة' });
+  if (b.undo) { m.enh = (m.enh || []).filter(i => !idx.includes(i)); }
+  else {
+    if (!enh.configured()) return res.status(400).json({ error: 'تحسين الخلفية محتاج مفتاح Gemini (GEMINI_API_KEY)' });
+    const fails = await enhanceIdx(m, idx);
+    m.warnings = m.warnings.filter(w => !w.startsWith('تحسين الخلفية'));
+    if (fails.length) m.warnings.push('تحسين الخلفية فشل: ' + fails.join(' | '));
+  }
   await reframe(m); await writeMeta(m.id, m);
   res.json(view(m));
 }));
@@ -256,7 +297,7 @@ app.put('/api/frame', wrap(async (req, res) => {
 
 // --- connection status -------------------------------------------------------
 app.get('/api/status', wrap(async (req, res) => {
-  const out = { claude: true, ai: require('./describe').aiOn(), wa: wa.configured(), supabase: false, system: false };
+  const out = { claude: true, ai: require('./describe').aiOn(), wa: wa.configured(), enhance: enh.configured(), supabase: false, system: false };
   try { await site.sections(); out.supabase = true; } catch (e) { out.error = e.message; }
   try { await erp.findByName('x'); out.system = true; } catch (e) { out.error = out.error || e.message; }
   res.json(out);
